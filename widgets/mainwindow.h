@@ -799,6 +799,7 @@ private:
   NonInheritingProcess proc_jt9;
   NonInheritingProcess p1;
   NonInheritingProcess p3;
+  QByteArray m_jt9_stderr_buffer;
 
   QProcess p2;
   QProcess p4;

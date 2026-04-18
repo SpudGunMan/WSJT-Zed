@@ -809,6 +809,16 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
 
 
   connect(&proc_jt9, &QProcess::readyReadStandardOutput, this, &MainWindow::readFromStdout);
+  connect(&proc_jt9, &QProcess::readyReadStandardError, [this] {
+    auto chunk = proc_jt9.readAllStandardError ();
+    if (!chunk.isEmpty ()) {
+      m_jt9_stderr_buffer.append (chunk);
+      constexpr int max_jt9_stderr_bytes = 32768;
+      if (m_jt9_stderr_buffer.size () > max_jt9_stderr_bytes) {
+        m_jt9_stderr_buffer.remove (0, m_jt9_stderr_buffer.size () - max_jt9_stderr_bytes);
+      }
+    }
+  });
 #if QT_VERSION < QT_VERSION_CHECK (5, 6, 0)
   connect(&proc_jt9, static_cast<void (QProcess::*) (QProcess::ProcessError)> (&QProcess::error),
           [this] (QProcess::ProcessError error) {
@@ -1074,8 +1084,9 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
       , "-t", QDir::toNativeSeparators (m_config.temp_dir ().absolutePath ())
       };
   QProcessEnvironment new_env {m_env};
-  new_env.insert ("OMP_STACKSIZE", "4M");
+  new_env.insert ("OMP_STACKSIZE", "16M");
   proc_jt9.setProcessEnvironment (new_env);
+  m_jt9_stderr_buffer.clear ();
   // Set jt9's working directory to the install bin/ folder so that bare-
   // filename opens (ALLCALL7.TXT in cwfilter.f90, matching wsjtx-orig)
   // resolve correctly regardless of how the user launched wsjtx.
@@ -3234,19 +3245,38 @@ bool MainWindow::subProcessFailed (QProcess * process, int exit_code, QProcess::
 {
   if (m_valid && (exit_code || QProcess::NormalExit != status))
     {
+      constexpr int max_stderr_bytes = 32768;
       QStringList arguments;
       for (auto argument: process->arguments ())
         {
           if (argument.contains (' ')) argument = '"' + argument + '"';
           arguments << argument;
         }
+      QByteArray stderr_bytes;
+      if (process == &proc_jt9)
+        {
+          stderr_bytes = m_jt9_stderr_buffer;
+        }
+      stderr_bytes.append (process->readAllStandardError ());
+      if (stderr_bytes.size () > max_stderr_bytes)
+        {
+          stderr_bytes.remove (0, stderr_bytes.size () - max_stderr_bytes);
+        }
+
+      auto stderr_text = QString::fromLocal8Bit (stderr_bytes).trimmed ();
+      if (stderr_text.isEmpty ())
+        {
+          stderr_text = tr ("No stderr output captured.");
+        }
+
       if (m_splash && m_splash->isVisible ()) m_splash->hide ();
       MessageBox::critical_message (this, tr ("Subprocess Error")
-                                    , tr ("Subprocess failed with exit code %1")
+                                    , tr ("Subprocess failed with exit code %1 (%2)")
                                     .arg (exit_code)
+                                    .arg (QProcess::CrashExit == status ? tr ("crashed") : tr ("normal exit"))
                                     , tr ("Running: %1\n%2")
                                     .arg (process->program () + ' ' + arguments.join (' '))
-                                    .arg (QString {process->readAllStandardError()}));
+                                    .arg (stderr_text));
       return true;
     }
   return false;
@@ -3256,17 +3286,36 @@ void MainWindow::subProcessError (QProcess * process, QProcess::ProcessError)
 {
   if (m_valid)
     {
+      constexpr int max_stderr_bytes = 32768;
       QStringList arguments;
       for (auto argument: process->arguments ())
         {
           if (argument.contains (' ')) argument = '"' + argument + '"';
           arguments << argument;
         }
+
+      QByteArray stderr_bytes;
+      if (process == &proc_jt9)
+        {
+          stderr_bytes = m_jt9_stderr_buffer;
+        }
+      stderr_bytes.append (process->readAllStandardError ());
+      if (stderr_bytes.size () > max_stderr_bytes)
+        {
+          stderr_bytes.remove (0, stderr_bytes.size () - max_stderr_bytes);
+        }
+      auto stderr_text = QString::fromLocal8Bit (stderr_bytes).trimmed ();
+      if (stderr_text.isEmpty ())
+        {
+          stderr_text = tr ("No stderr output captured.");
+        }
+
       if (m_splash && m_splash->isVisible ()) m_splash->hide ();
       MessageBox::critical_message (this, tr ("Subprocess error")
-                                    , tr ("Running: %1\n%2")
+                                    , tr ("Running: %1\n%2\n\nStderr tail:\n%3")
                                     .arg (process->program () + ' ' + arguments.join (' '))
-                                    .arg (process->errorString ()));
+                                    .arg (process->errorString ())
+                                    .arg (stderr_text));
       m_valid = false;              // ensures exit if still constructing
       QTimer::singleShot (0, this, SLOT (close ()));
     }
@@ -5595,6 +5644,8 @@ void MainWindow::guiUpdate()
       static int s_lastReset = -1;
       if (s_in_min != s_lastReset) {
         earlyDecodes = "";
+        m_nDecodes = 0;
+        ndecodes_label.setText("0");
         s_lastReset = s_in_min;
       }
     }
