@@ -1,0 +1,23 @@
+#include "about.h"
+
+#include <QCoreApplication>
+#include <QString>
+
+#include "revision_utils.hpp"
+
+#include "ui_about.h"
+
+CAboutDlg::CAboutDlg(QWidget *parent) :
+  QDialog(parent),
+  ui(new Ui::CAboutDlg)
+{
+  ui->setupUi(this);
+
+  ui->labelTxt->setText ("<h2> WSJT-Z - a WSJT-X fork. </h2>"
+    
+    "https://www.gnu.org/licenses/gpl-3.0.txt</a>");
+}
+
+CAboutDlg::~CAboutDlg()
+{
+}
