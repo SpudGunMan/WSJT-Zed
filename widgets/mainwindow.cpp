@@ -4760,7 +4760,10 @@ void MainWindow::readFromStdout()                             //readFromStdout
   // append happens here too (orig appends after display; we do it inline).
   bool const mtft8 = (m_mode == "FT8")
       && ui->actionUse_multithreaded_FT8_decoder->isChecked();
-  bool const dedup_on = mtft8 && (m_ft8DecoderStart < 2 || m_freqNominal > 45000000);
+    bool const dedup_on = mtft8 &&
+      (m_ft8DecoderStart < 2
+       || m_freqNominal > 45000000
+       || ui->actionReduce_false_decodes->isChecked());
   while(proc_jt9.canReadLine()) {
     auto line_read = proc_jt9.readLine ();
     if (dedup_on && line_read.size() >= 42
