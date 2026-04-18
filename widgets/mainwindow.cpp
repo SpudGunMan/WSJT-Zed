@@ -394,6 +394,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   m_btxok0 {false},
   m_nsendingsh {0},
   m_onAirFreq0 {0.0},
+  m_foxWarningDialFreq0 {0.0},
   m_first_error {true},
   tx_status_label {tr ("Receiving")},
   wsprNet {new WSPRNet {&m_network_manager, this}},
@@ -5716,22 +5717,34 @@ void MainWindow::guiUpdate()
     if(m_mode=="FT8" and SpecOp::FOX==m_specOp) {
 // Don't allow Fox mode in any of the default FT8 sub-bands.
       QVector<qint32> ft8Freq = {1840000,3573000,7074000,10136000,14074000,18100000,21074000,24915000,28074000,50313000,70154000};
+      bool fox_band_conflict = false;
+      qint32 conflict_freq = 0;
       for(int i=0; i<ft8Freq.length()-1; i++) {
           int kHzdiff=m_freqNominal - ft8Freq[i];
           if(qAbs(kHzdiff) < 3000 ) {
+          fox_band_conflict = true;
+          conflict_freq = ft8Freq[i];
           m_bTxTime=false;
           if (m_auto) auto_tx_mode (false);
           if (m_tune) stop_tuning();
-          auto const& message = tr ("Please choose another dial frequency.\n"
-                                    "Must be 3Khz away from %1.\n"
-                                    "WSJT-X will not operate in Fox mode\n"
-                                    "overlapping the standard FT8 sub-bands.").arg(ft8Freq[i]);
-          QTimer::singleShot (0, [=] {               // don't block guiUpdate
-            MessageBox::warning_message (this, tr ("Fox Mode warning"), message);
-          });
+          if (m_freqNominal != m_foxWarningDialFreq0) {
+            m_foxWarningDialFreq0 = m_freqNominal;
+            auto const& message = tr ("Please choose another dial frequency.\n"
+                                      "Must be 3Khz away from %1.\n"
+                                      "WSJT-X will not operate in Fox mode\n"
+                                      "overlapping the standard FT8 sub-bands.").arg(conflict_freq);
+            QTimer::singleShot (0, [=] {               // don't block guiUpdate
+              MessageBox::warning_message (this, tr ("Fox Mode warning"), message);
+            });
+          }
           break;
         }
       }
+      if (!fox_band_conflict) {
+        m_foxWarningDialFreq0 = 0.0;
+      }
+    } else {
+      m_foxWarningDialFreq0 = 0.0;
     }
     // Z
     if (watchdog() && m_mode!="WSPR" && m_mode!="FST4W"
