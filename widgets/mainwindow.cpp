@@ -13766,6 +13766,8 @@ void MainWindow::switchBand(int row) {
         m_lastCall = QString();
         clearDX();
         busySlots.clear();
+        // Keep one current-cycle vector so addSlot() cannot index an empty container.
+        busySlots.prepend(QVector<int>());
         on_btn_clearIgnore_clicked();
         if (m_config.autoTune()) {
             ui->tuneButton->setChecked (true);
@@ -14103,6 +14105,10 @@ void MainWindow::logSlots() {
 }
 
 void MainWindow::addSlot(int freq) {
+  // readFromStdout() can call addSlot before ZProcess repopulates busySlots.
+  if (busySlots.isEmpty()) {
+    busySlots.prepend(QVector<int>());
+  }
     QVector<int> &slotsV = busySlots[0];
     slotsV.prepend(freq);
 }
