@@ -83,11 +83,11 @@ set (wsjtx_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_
 set (PROJECT_BUNDLE_NAME "WSJT-Z")
 set (PROJECT_VENDOR "SQ9FVE")
 set (PROJECT_CONTACT "SQ9FVE")
-set (PROJECT_COPYRIGHT "Copyright (C) 2001-2024 by SQ9FVE")
+set (PROJECT_COPYRIGHT "Copyright (C) 2001-2026 by SQ9FVE")
 set (PROJECT_HOMEPAGE https://groups.io/g/WSJT-Z)
 set (PROJECT_MANUAL wsjtx-main)
 set (PROJECT_MANUAL_DIRECTORY_URL https://groups.io/g/WSJT-Z)
-set (PROJECT_SAMPLES_URL https://groups.io/g/WSJT-Z)
+set (PROJECT_SAMPLES_URL https://sourceforge.net/projects/wsjt/files/)
 #set (PROJECT_SAMPLES_UPLOAD_DEST frs.sourceforge.net:/home/frs/project/wsjt/)
 
 # make sure that the default configuration is a RELEASE
