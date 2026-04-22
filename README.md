@@ -23,6 +23,8 @@ See full details at [INSTALL](INSTALL)
 - Source path is read from `tmp/build.txt` (`SRCD`). Build artifacts land in `E:\JTSDK-Build\output\_\build{32,64}`.
 
 ### Linux:
+[Environment Setup Guide](https://groups.io/g/WSJT-Z/files/Building%20WSJT%20From%20Source-1.2.pdf)
+
 ```bash
 cmake -S . -B build \
       -D CMAKE_INSTALL_PREFIX="$HOME/wsjtz" \
@@ -30,11 +32,15 @@ cmake -S . -B build \
       -D WSJT_GENERATE_DOCS=OFF \
       -D CMAKE_BUILD_TYPE=Release
 ```
+
 ```bash
-cmake --build build -j
+cmake --build build
 cmake --install build
 ```
 
+```bash
+cmake --build build --target clean
+```
 ## Version
 `3.0.0-2.0.8` — WSJT-X 3.0.0 base, WSJT-Z mod v2.0.8.
 
