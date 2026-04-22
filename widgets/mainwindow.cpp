@@ -8191,7 +8191,6 @@ void MainWindow::displayWidgets(qint64 n)
     if(i==8) ui->cbFast9->setVisible(b);
     if(i==9) ui->cbAutoSeq->setVisible(b);
     if(i==10) ui->cbTx6->setVisible(b);
-    // if(i==11) ui->pbTxMode->setVisible(b);
     if(i==12) ui->pbR2T->setVisible(b);
     if(i==13) ui->pbT2R->setVisible(b);
     if(i==14) ui->cbHoldTxFreq->setVisible(b);
@@ -8211,7 +8210,11 @@ void MainWindow::displayWidgets(qint64 n)
     if(i==24) ui->actionEnable_AP_FT8->setVisible (b);
     if(i==25) ui->actionEnable_AP_JT65->setVisible (b);
     if(i==26) ui->actionEnable_AP_DXcall->setVisible (b);
-    if(i==27) ui->respondComboBox->setVisible(b);
+    if(i==27) {
+      ui->cbFirst->setVisible(b);
+      ui->respondComboBox->setVisible(b);
+    }
+    if(i==28) ui->labNextCall->setVisible(b);
     if(i==29) ui->measure_check_box->setVisible(b);
     if(i==30) ui->labDXped->setVisible(b);
     if(i==31) ui->cbRxAll->setVisible(b);
@@ -8229,6 +8232,8 @@ void MainWindow::displayWidgets(qint64 n)
     j=j>>1;
   }
   ui->pbBestSP->setVisible((m_mode=="FT4" or m_mode=="FT2"));
+  ui->pbTxMode->setVisible(m_mode.startsWith("JT"));
+  ui->labNextCall->setVisible(m_mode.startsWith("F") || m_mode=="Q65");
   b=false;
   if(m_mode=="FT4" or m_mode=="FT8" or m_mode=="FT2" || "Q65" == m_mode) {
   b=SpecOp::EU_VHF==m_specOp or
