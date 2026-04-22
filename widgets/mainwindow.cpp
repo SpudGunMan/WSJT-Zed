@@ -5455,6 +5455,8 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     QString hiscall;
     QString hisgrid;
     message.deCallAndGrid(/*out*/hiscall,hisgrid);
+    bool addressed_to_me = message_words.at (2).contains (m_baseCall);
+    bool tailender_ok = (m_config.processTailenders() || m_lastCall == hiscall || !m_bAutoReply);
 
 	// Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
     if (m_auto
@@ -5522,6 +5524,16 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
         if (!ui->dxCallEntry->text().isEmpty()) auto_tx_mode(true);
     } else {
         if (m_zdebug) log("Not processing");
+        if (m_zdebug) log(": addressed_to_me: " + QString::number(addressed_to_me));
+        if (m_zdebug) log(": m_auto: " + QString::number(m_auto));
+        if (m_zdebug) log(": cbAutoSeq: " + QString::number(ui->cbAutoSeq->isChecked()));
+        if (m_zdebug) log(": m_bCallingCQ: " + QString::number(m_bCallingCQ));
+        if (m_zdebug) log(": m_bAutoReply: " + QString::number(m_bAutoReply));
+        if (m_zdebug) log(": m_QSOProgress: " + QString::number(m_QSOProgress));
+        if (m_zdebug) log(": tailender_ok: " + QString::number(tailender_ok));
+        if (m_zdebug) log(": hiscall: " + hiscall);
+        if (m_zdebug) log(": m_lastCall: " + m_lastCall);
+        if (m_zdebug) log(": m_transmitting: " + QString::number(m_transmitting));
     }
   }
 }
