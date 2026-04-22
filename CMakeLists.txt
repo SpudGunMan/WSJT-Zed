@@ -1186,7 +1186,13 @@ endif ()
 get_target_property (QMAKE_EXECUTABLE Qt5::qmake LOCATION)
 get_target_property (LCONVERT_EXECUTABLE Qt5::lconvert LOCATION)
 function (QUERY_QMAKE VAR RESULT)
-  exec_program (${QMAKE_EXECUTABLE} ARGS "-query ${VAR}" RETURN_VALUE return_code OUTPUT_VARIABLE output)
+  execute_process (
+    COMMAND ${QMAKE_EXECUTABLE} -query ${VAR}
+    RESULT_VARIABLE return_code
+    OUTPUT_VARIABLE output
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    )
   if (NOT return_code)
     file (TO_CMAKE_PATH "${output}" output)
     set (${RESULT} ${output} PARENT_SCOPE)
