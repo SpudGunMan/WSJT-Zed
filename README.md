@@ -18,9 +18,10 @@ See full details at [INSTALL](INSTALL)
 ### Windows via JTSDK:
 [JTSDK64 Setup Guide](https://jtsdk.github.io/jtsdk64-tools/setup/overview/)
 - **64-bit:** `E:\JTSDK64-Tools` → `jtsdk64.cmd` → `jtbuild rinstall` (or `jtbuild package`)
+
 [JTSDK Guide](https://sourceforge.net/projects/hamlib-sdk/files/Windows/JTSDK-3.3-x86-Stream/)
 - **32-bit:** `E:\JTSDK-Tools` → `jtsdk-env.cmd` → `jtbuild package`
-- Source path is read from `tmp/build.txt` (`SRCD`). Build artifacts land in `E:\JTSDK-Build\output\_\build{32,64}`.
+- Source path is read from `tmp/build.txt` (`SRCD`). Build artifacts land in `X:\JTSDK-Build\output\_\build{32,64}`.
 
 ### Linux:
 [Environment Setup Guide](https://groups.io/g/WSJT-Z/files/Building%20WSJT%20From%20Source-1.2.pdf)
