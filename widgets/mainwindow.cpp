@@ -3219,6 +3219,8 @@ void MainWindow::setup_status_bar (bool vhf)
     mode_label.setStyleSheet ("QLabel{color: #000000; background-color: #ff6666}");
   } else if ("FT4" == m_mode) {
     mode_label.setStyleSheet ("QLabel{color: #000000; background-color: #ff0099}");
+  } else if ("FT2" == m_mode) {
+    mode_label.setStyleSheet ("QLabel{color: #000000; background-color: #ff3399}");
   } else if ("FT8" == m_mode) {
     mode_label.setStyleSheet ("QLabel{color: #000000; background-color: #ff6699}");
   } else if ("FST4" == m_mode) {
@@ -6747,7 +6749,7 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
       || ("JT9" == m_mode && mode != "@")
       || ("MSK144" == m_mode && !("&" == mode || "^" == mode))
       || ("Q65" == m_mode && mode.left (1) != ":")) {
-    return;      //Currently we do auto-sequencing only in FT4, FT8, MSK144, FST4, and Q65
+    return;      //Currently we do auto-sequencing only in FT2, FT4, FT8, MSK144, FST4, and Q65
   }
 
   //Skip the rest if no decoded text extracted
