@@ -1,4 +1,40 @@
 == Changelog
+V2.0.11
+[fixes]
+- TCI audio now actually starts. The "Use TCI Audio" checkbox was wired into Settings but the resulting flag bit was never OR'd into rig_params.poll_interval, so TCITransceiver booted with tci_audio_=false and never sent audio_start to the rig. Result: no RX audio reached WSJT-Z, and TX audio only worked if the operator had manually selected TCI as the audio source on the rig side. Configuration::gather_rig_data now sets the tci__audio bit when the checkbox is ticked, matching the upstream wiring.
+
+V2.0.10
+[fixes]
+- Contest log save no longer fails with "Database Error: No query / Unable to fetch row" after decoding any US callsign. Root cause: the USState lookup was calling QSqlDatabase::addDatabase("QSQLITE") with no connection name, which replaces the unnamed default SQLite connection used by the contest log. Fix: USState now uses its own named connection ("usstate") opened once and reused.
+- App no longer crashes on Settings → OK when "Special operating activity" is enabled and the Advanced tab has been visited. Same root cause as above: the settings flow calls on_contest_log_action_triggered → n_qso(), the SQL error threw std::runtime_error out of a Qt slot, and Qt aborts the process on uncaught exceptions. n_qso() now returns 0 on a SELECT failure instead of throwing.
+
+V2.0.9
+[features]
+- TCI audio support — for SunSDR/MB1/ColibriNANO and other TCI rigs, audio is now streamed over the same TCI connection used for CAT/PTT (no virtual audio cable needed). When "Use TCI Audio" is ticked in Settings → Radio, the Sound Input/Output dropdowns offer a "TCI audio" device that routes RX/TX audio through the rig's TCI server.
+
+[fixes]
+- Clean settings dialog open/close on a TCI rig no longer tugs at the rig frequency mid-doppler-update (astroUpdate now skips setRig while the settings dialog is open).
+
+V2.0.8
+[fixes]
+- Fixed PSKReporter spotting on Windows (was failing with a TLS error — OpenSSL libraries are now bundled with the installer)
+- Fixed random ~1 MHz dial frequency jumps when double-clicking some FT8 CQ decodes
+- Decoder cycle-end reset now works correctly for non-FT8 modes that use a different symbol count
+
+[features]
+- TCI rig support — Expert Electronics SunSDR, MB1, ColibriNANO and other TCI-compatible SDRs are now selectable as rigs for CAT/PTT control
+- HighDPI scaling option for high-resolution / 4K monitors (Settings → Advanced → GUI tweaks for high-resolution monitors)
+- Optional taller tab widget for hi-res displays
+
+[tooling]
+- New script (tools/rebuild_usstate_db.py) to refresh USState.db from the weekly FCC ULS dump
+- Refreshed USState.db with the latest FCC data (April 2026, ~746k active US amateur callsigns)
+
+[docs]
+- New README with project overview, mode list, feature catalog, build instructions, and credits
+- Releases and changelog now hosted on GitHub
+- .gitignore updated for AI tool artifacts
+
 V2.0.7
 [fixes]
 - Fixed FT8 multi-threaded decoder producing duplicate decodes of the same station on the same frequency within a single cycle (e.g. same message with SNR +1 and -18)

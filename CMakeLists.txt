@@ -83,11 +83,11 @@ set (wsjtx_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_
 set (PROJECT_BUNDLE_NAME "WSJT-Z")
 set (PROJECT_VENDOR "SQ9FVE")
 set (PROJECT_CONTACT "SQ9FVE")
-set (PROJECT_COPYRIGHT "Copyright (C) 2001-2024 by SQ9FVE")
+set (PROJECT_COPYRIGHT "Copyright (C) 2001-2026 by SQ9FVE")
 set (PROJECT_HOMEPAGE https://groups.io/g/WSJT-Z)
 set (PROJECT_MANUAL wsjtx-main)
 set (PROJECT_MANUAL_DIRECTORY_URL https://groups.io/g/WSJT-Z)
-set (PROJECT_SAMPLES_URL https://groups.io/g/WSJT-Z)
+set (PROJECT_SAMPLES_URL https://sourceforge.net/projects/wsjt/files/)
 #set (PROJECT_SAMPLES_UPLOAD_DEST frs.sourceforge.net:/home/frs/project/wsjt/)
 
 # make sure that the default configuration is a RELEASE
@@ -213,6 +213,7 @@ set (wsjt_qt_CXXSRCS
   Transceiver/HamlibTransceiver.cpp
   Transceiver/HRDTransceiver.cpp
   Transceiver/DXLabSuiteCommanderTransceiver.cpp
+  Transceiver/TCITransceiver.cpp
   Network/NetworkMessage.cpp
   Network/MessageClient.cpp
   widgets/LettersSpinBox.cpp
@@ -1018,7 +1019,7 @@ endif ()
 #
 
 # Widgets finds its own dependencies.
-find_package (Qt5 COMPONENTS Widgets SerialPort Multimedia PrintSupport Sql LinguistTools REQUIRED)
+find_package (Qt5 COMPONENTS Widgets SerialPort Multimedia PrintSupport Sql LinguistTools WebSockets REQUIRED)
 
 if (WIN32)
   add_definitions (-DQT_NEEDS_QTMAIN)
@@ -1186,7 +1187,13 @@ endif ()
 get_target_property (QMAKE_EXECUTABLE Qt5::qmake LOCATION)
 get_target_property (LCONVERT_EXECUTABLE Qt5::lconvert LOCATION)
 function (QUERY_QMAKE VAR RESULT)
-  exec_program (${QMAKE_EXECUTABLE} ARGS "-query ${VAR}" RETURN_VALUE return_code OUTPUT_VARIABLE output)
+  execute_process (
+    COMMAND ${QMAKE_EXECUTABLE} -query ${VAR}
+    RESULT_VARIABLE return_code
+    OUTPUT_VARIABLE output
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    )
   if (NOT return_code)
     file (TO_CMAKE_PATH "${output}" output)
     set (${RESULT} ${output} PARENT_SCOPE)
@@ -1501,7 +1508,7 @@ target_link_libraries (qcp Qt5::Widgets Qt5::PrintSupport)
 add_library (wsjt_qt STATIC ${wsjt_qt_CXXSRCS} ${wsjt_qt_GENUISRCS} ${GENAXSRCS})
 # set wsjtx_udp exports to static variants
 target_compile_definitions (wsjt_qt PUBLIC UDP_STATIC_DEFINE)
-target_link_libraries (wsjt_qt Hamlib::Hamlib Boost::log qcp Qt5::Widgets Qt5::Network Qt5::Sql)
+target_link_libraries (wsjt_qt Hamlib::Hamlib Boost::log qcp Qt5::Widgets Qt5::Network Qt5::Sql Qt5::WebSockets)
 if (WIN32)
   target_link_libraries (wsjt_qt Qt5::AxContainer Qt5::AxBase)
 endif (WIN32)
@@ -1797,6 +1804,20 @@ install (DIRECTORY
   #COMPONENT runtime
   )
 
+# OpenSSL runtime DLLs for PSKReporter / hamlib network TLS on Windows.
+# Without these Qt's QSslSocket reports "TLS initialization failed" and
+# PSKReporter spotting fails. Mirrors wsjtx-orig.
+if (WIN32)
+  install (FILES
+    contrib/tls/libssl-1_1.dll
+    contrib/tls/libcrypto-1_1.dll
+    contrib/tls/libssl-1_1-x64.dll
+    contrib/tls/libcrypto-1_1-x64.dll
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+    #COMPONENT runtime
+  )
+endif (WIN32)
+
 #
 # Mac installer files
 #
@@ -1894,7 +1915,7 @@ set (CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/package_description.txt
 set (CPACK_MONOLITHIC_INSTALL 1)
 ## Z
 set (CPACK_PACKAGE_NAME "wsjtz")
-set (CPACK_PACKAGE_VERSION_Z "2.0.7")
+set (CPACK_PACKAGE_VERSION_Z "2.0.11")
 set (CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set (CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
 set (CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}-${CPACK_PACKAGE_VERSION_Z}")

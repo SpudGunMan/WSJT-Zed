@@ -134,6 +134,7 @@ public slots:
   void showStatusMessage(const QString& statusMsg);
   void dataSink(qint64 frames);
   void fastSink(qint64 frames);
+  void tci_mod_active(bool on) {m_tci_mod_active = on;}
   void diskDat();
   void freezeDecode(int n);
   void guiUpdate();
@@ -227,6 +228,7 @@ private slots:
   void on_txb6_clicked();
   void on_lookupButton_clicked();
   void on_addButton_clicked();
+  void wheelEvent(QWheelEvent *event) override;
   void mousePressEvent(QMouseEvent *event) override;
   void on_dxCallEntry_textChanged (QString const&);
   void on_dxGridEntry_textChanged (QString const&);
@@ -660,6 +662,10 @@ private:
   qint32  m_fetched=0;
 
   bool    m_btxok;		//True if OK to transmit
+  bool    m_tci_mod_active;
+  bool    m_tci;
+  bool    m_tci_audio;
+  bool    inSettings = false;
   bool    m_diskData;
   bool    m_loopall;
   bool    m_decoderBusy;
@@ -725,6 +731,7 @@ private:
   int     m_maxDistance = 0;
   int     m_maxSignal = -30;
   QString m_priorityCall;
+  bool    m_priorityCallPreferCQTarget = false;
   int     m_decodeCount = 0;
   bool    m_prioTxFirst;
   int     m_prioFreq;
@@ -767,6 +774,7 @@ private:
   bool		m_btxok0;
   int			m_nsendingsh;
   double	m_onAirFreq0;
+  double	m_foxWarningDialFreq0;
   bool		m_first_error;
 
   char    m_msg[100][80];
@@ -799,6 +807,7 @@ private:
   NonInheritingProcess proc_jt9;
   NonInheritingProcess p1;
   NonInheritingProcess p3;
+  QByteArray m_jt9_stderr_buffer;
 
   QProcess p2;
   QProcess p4;
