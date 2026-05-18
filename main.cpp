@@ -20,6 +20,8 @@
 #include <QSysInfo>
 #include <QDir>
 #include <QDirIterator>
+#include <QFile>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QLockFile>
@@ -112,6 +114,15 @@ int main(int argc, char *argv[])
 
   // Multiple instances communicate with jt9 via this
   QSharedMemory mem_jt9;
+
+  // Read optional file to disable highDPI scaling. Anchor to the exe
+  // directory via argv[0] — relative paths resolve against CWD which
+  // differs between launch (often install root) and Configuration's
+  // toggle-time CWD, so a relative QFile path lost the sentinel.
+  QString sentinelPath = QFileInfo (QString::fromLocal8Bit (argv[0]))
+                           .absoluteDir ().absoluteFilePath ("DisableHighDpiScaling");
+  QFile f(sentinelPath);
+  if (!f.exists()) QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 
   auto const env = QProcessEnvironment::systemEnvironment ();
 
@@ -394,12 +405,34 @@ int main(int argc, char *argv[])
             {
               if (!mem_jt9.create (sizeof (dec_data)))
               {
-                splash.hide ();
-                MessageBox::critical_message (nullptr, a.translate ("main", "Shared memory error"),
-                                              a.translate ("main", "Unable to create shared memory segment"));
-                throw std::runtime_error {"Shared memory error"};
+                // A stale segment from a previous crash/build can cause create()
+                // to fail (e.g. AlreadyExists/PermissionDenied). Try one
+                // cleanup pass and then retry before bailing out.
+                auto const first_error = mem_jt9.errorString ();
+                if (mem_jt9.attach ())
+                  {
+                    mem_jt9.detach ();
+                  }
+
+                if (!mem_jt9.create (sizeof (dec_data)))
+                  {
+                    auto const details = a.translate ("main", "Unable to create shared memory segment")
+                      + "\n"
+                      + a.translate ("main", "Key") + ": " + mem_jt9.key ()
+                      + "\n"
+                      + a.translate ("main", "Error") + ": " + mem_jt9.errorString ()
+                      + "\n"
+                      + a.translate ("main", "Initial error") + ": " + first_error;
+
+                    splash.hide ();
+                    MessageBox::critical_message (nullptr, a.translate ("main", "Shared memory error"), details);
+                    throw std::runtime_error {("Shared memory error: " + details).toStdString ()};
+                  }
               }
-              LOG_INFO ("shmem size: " << mem_jt9.size ());
+              else
+                {
+                  LOG_INFO ("shmem size: " << mem_jt9.size ());
+                }
             }
           else
             {

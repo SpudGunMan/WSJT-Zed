@@ -89,6 +89,8 @@ set (PROJECT_MANUAL wsjtx-main)
 set (PROJECT_MANUAL_DIRECTORY_URL https://groups.io/g/WSJT-Z)
 set (PROJECT_SAMPLES_URL https://sourceforge.net/projects/wsjt/files/)
 #set (PROJECT_SAMPLES_UPLOAD_DEST frs.sourceforge.net:/home/frs/project/wsjt/)
+# WSJT-Z mod version suffix shown in UI and package metadata.
+set (VERSION_Z "2.0.14")
 
 # make sure that the default configuration is a RELEASE
 if (NOT CMAKE_BUILD_TYPE)
@@ -213,6 +215,7 @@ set (wsjt_qt_CXXSRCS
   Transceiver/HamlibTransceiver.cpp
   Transceiver/HRDTransceiver.cpp
   Transceiver/DXLabSuiteCommanderTransceiver.cpp
+  Transceiver/TCITransceiver.cpp
   Network/NetworkMessage.cpp
   Network/MessageClient.cpp
   widgets/LettersSpinBox.cpp
@@ -290,6 +293,9 @@ set (wsjtx_CXXSRCS
   widgets/astro.cpp
   widgets/messageaveraging.cpp
   widgets/activeStations.cpp
+  widgets/QSYMessage.cpp
+  widgets/QSYMessageCreator.cpp
+  widgets/qsymonitor.cpp
   widgets/colorhighlighting.cpp
   WSPR/WsprTxScheduler.cpp
   widgets/mainwindow.cpp
@@ -774,6 +780,9 @@ set (wsjtx_UISRCS
   widgets/activeStations.ui
   widgets/widegraph.ui
   widgets/logqso.ui
+  widgets/QSYMessage.ui
+  widgets/QSYMessageCreator.ui
+  widgets/qsymonitor.ui
   Configuration.ui
   widgets/ExportCabrillo.ui
   widgets/unfilteredview.ui
@@ -1018,7 +1027,7 @@ endif ()
 #
 
 # Widgets finds its own dependencies.
-find_package (Qt5 COMPONENTS Widgets SerialPort Multimedia PrintSupport Sql LinguistTools REQUIRED)
+find_package (Qt5 COMPONENTS Widgets SerialPort Multimedia PrintSupport Sql LinguistTools WebSockets REQUIRED)
 
 if (WIN32)
   add_definitions (-DQT_NEEDS_QTMAIN)
@@ -1507,7 +1516,7 @@ target_link_libraries (qcp Qt5::Widgets Qt5::PrintSupport)
 add_library (wsjt_qt STATIC ${wsjt_qt_CXXSRCS} ${wsjt_qt_GENUISRCS} ${GENAXSRCS})
 # set wsjtx_udp exports to static variants
 target_compile_definitions (wsjt_qt PUBLIC UDP_STATIC_DEFINE)
-target_link_libraries (wsjt_qt Hamlib::Hamlib Boost::log qcp Qt5::Widgets Qt5::Network Qt5::Sql)
+target_link_libraries (wsjt_qt Hamlib::Hamlib Boost::log qcp Qt5::Widgets Qt5::Network Qt5::Sql Qt5::WebSockets)
 if (WIN32)
   target_link_libraries (wsjt_qt Qt5::AxContainer Qt5::AxBase)
 endif (WIN32)
@@ -1803,6 +1812,20 @@ install (DIRECTORY
   #COMPONENT runtime
   )
 
+# OpenSSL runtime DLLs for PSKReporter / hamlib network TLS on Windows.
+# Without these Qt's QSslSocket reports "TLS initialization failed" and
+# PSKReporter spotting fails. Mirrors wsjtx-orig.
+if (WIN32)
+  install (FILES
+    contrib/tls/libssl-1_1.dll
+    contrib/tls/libcrypto-1_1.dll
+    contrib/tls/libssl-1_1-x64.dll
+    contrib/tls/libcrypto-1_1-x64.dll
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+    #COMPONENT runtime
+  )
+endif (WIN32)
+
 #
 # Mac installer files
 #
@@ -1900,7 +1923,7 @@ set (CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/package_description.txt
 set (CPACK_MONOLITHIC_INSTALL 1)
 ## Z
 set (CPACK_PACKAGE_NAME "wsjtz")
-set (CPACK_PACKAGE_VERSION_Z "2.0.7")
+set (CPACK_PACKAGE_VERSION_Z "${VERSION_Z}")
 set (CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set (CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
 set (CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}-${CPACK_PACKAGE_VERSION_Z}")

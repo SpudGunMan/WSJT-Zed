@@ -76,6 +76,7 @@ class QSharedMemory;
 class QSplashScreen;
 class QSettings;
 class QLineEdit;
+class QPoint;
 class QFont;
 class QHostInfo;
 class EchoGraph;
@@ -87,6 +88,9 @@ class MessageAveraging;
 class ActiveStations;
 class FoxLogWindow;
 class CabrilloLogWindow;
+class QSYMessageCreator;
+class QSYMessage;
+class QSYMonitor;
 class ColorHighlighting;
 class MessageClient;
 class QTime;
@@ -134,6 +138,7 @@ public slots:
   void showStatusMessage(const QString& statusMsg);
   void dataSink(qint64 frames);
   void fastSink(qint64 frames);
+  void tci_mod_active(bool on) {m_tci_mod_active = on;}
   void diskDat();
   void freezeDecode(int n);
   void guiUpdate();
@@ -227,6 +232,7 @@ private slots:
   void on_txb6_clicked();
   void on_lookupButton_clicked();
   void on_addButton_clicked();
+  void wheelEvent(QWheelEvent *event) override;
   void mousePressEvent(QMouseEvent *event) override;
   void on_dxCallEntry_textChanged (QString const&);
   void on_dxGridEntry_textChanged (QString const&);
@@ -281,6 +287,8 @@ private slots:
   void handle_transceiver_update (Transceiver::TransceiverState const&);
   void handle_transceiver_failure (QString const& reason);
   void on_actionAstronomical_data_toggled (bool);
+  void on_actionQSYMessage_Creator_triggered();
+  void on_actionQSY_Monitor_triggered();
   void on_actionShort_list_of_add_on_prefixes_and_suffixes_triggered();
   void band_changed (Frequency);
   void monitor (bool);
@@ -425,6 +433,7 @@ private slots:
      void on_txrb6_doubleClicked ();
      void dxLookup(QString dxCall, QString dxGrid);
      void leftClickHandler(Qt::KeyboardModifiers modifiers);
+    void bandActivityClickToggle(Qt::KeyboardModifiers modifiers);
      void on_actionCall_info_triggered();
      void on_actionDark_mode_triggered();
      void qrzInit();
@@ -434,14 +443,17 @@ private slots:
      void on_ci_pb_lookup_clicked();
      void on_cb_specialMode_currentIndexChanged( int index);
      void on_cb_autoModeSwitch_toggled(bool b);
+    void on_cb_autoModeSwitch_customContextMenuRequested(QPoint const&);
      void on_actionAbout_WSJT_Z_triggered();
      void on_pb_WDReset_clicked();
      void resetAutoSwitch();
-     int watchdog();
+    double watchdog();
      void on_actionUnfiltered_View_triggered();
      void on_actionPSKReporter_triggered();
      void updateQsoCounter(bool increment);
      void on_txFirstCheckBox_toggled();
+    void update_tx5(const QString &qsy_text);
+    void reply_tx5(const QString &qsy_reply);
 
 private:
   Q_SIGNAL void initializeAudioOutputStream (QAudioDeviceInfo,
@@ -480,6 +492,7 @@ private:
   bool elide_tx1_not_allowed () const;
   void readWidebandDecodes();
   void configActiveStations();
+  void showQSYMessage(QString message);
   void sfox_tx();
   // Z
   void ci_gridLookup();
@@ -545,6 +558,9 @@ private:
   QScopedPointer<FastGraph> m_fastGraph;
   QScopedPointer<LogQSO> m_logDlg;
   QScopedPointer<Astro> m_astroWidget;
+  QScopedPointer<QSYMessageCreator> m_QSYMessageCreatorWidget;
+  QScopedPointer<QSYMessage> m_QSYMessageWidget;
+  QScopedPointer<QSYMonitor> m_qsymonitorWidget;
   QScopedPointer<HelpTextWindow> m_shortcuts;
   QScopedPointer<HelpTextWindow> m_prefixes;
   QScopedPointer<HelpTextWindow> m_mouseCmnds;
@@ -612,7 +628,7 @@ private:
   qint32  m_inGain;
   qint32  m_ncw;
   qint32  m_secID;
-  qint32  m_idleMinutes;
+  double  m_idleMinutes;
   qint32  m_nSubMode;
   qint32  m_nSubMode_Q65;
   qint32  m_nSubMode_JT65;
@@ -660,6 +676,10 @@ private:
   qint32  m_fetched=0;
 
   bool    m_btxok;		//True if OK to transmit
+  bool    m_tci_mod_active;
+  bool    m_tci;
+  bool    m_tci_audio;
+  bool    inSettings = false;
   bool    m_diskData;
   bool    m_loopall;
   bool    m_decoderBusy;
@@ -732,13 +752,24 @@ private:
   QString m_prioGrid;
   bool    m_infoMessageShown = false;
   bool    m_autoModeSwitch = false;
-  bool    m_timeToHop = false;
+  bool    m_smartModeSwitch = false;
   QScopedPointer<UnfilteredView> m_unfilteredView;
   QScopedPointer<PSKReporterWidget> m_pskReporterView;
   QThread * m_pskReporterThread;
   QDateTime m_ignoreListReset;
+  QDateTime m_watchdogAnchorUtc;
   qint64 m_msTxFirst;
   bool m_TxFirstLock = false;
+  bool m_savedAutoCQfiltering = false;
+  bool m_savedProcessTailenders = false;
+  bool m_savedAutoCQfilteringValid = false;
+  bool m_savedContinentEU = true;
+  bool m_savedContinentAF = true;
+  bool m_savedContinentAN = true;
+  bool m_savedContinentAS = true;
+  bool m_savedContinentNA = true;
+  bool m_savedContinentSA = true;
+  bool m_savedContinentOC = true;
   bool m_AutoTxFreq = false;
   int qso_total = 0;
   int qso_new = 0;
@@ -790,6 +821,7 @@ private:
   QLabel auto_tx_label;
   QLabel band_hopping_label;
   QLabel ndecodes_label;
+  QLabel mode_switch_status_label;
   QProgressBar progressBar;
   QLabel watchdog_label;
 
@@ -970,6 +1002,7 @@ private:
   QByteArray m_geometryNoControls;
   QVector<double> m_phaseEqCoefficients;
   bool m_block_udp_status_updates;
+  bool m_bandActivityRawView = false;
 
   //---------------------------------------------------- private functions
   // Z 
@@ -977,8 +1010,11 @@ private:
   void qrzLookup(QString dxCall);
   void qrzVisible(bool b);
   void clearCallInfo();
+  void apply_pileup_mode_side_effects(bool enabled);
   QString  stateLookup(QString callsign);
   QString leftJustifyAppendage (QString message, QString appendage);
+  void updateBandActivityTitleLabel();
+  QString formatRawViewLine(DecodedText const& decodedtext0, QString const& deCall);
   void clearRXWindows();
 
   void readSettings();
@@ -986,6 +1022,9 @@ private:
   void setDecodedTextFont (QFont const&);
   void writeSettings();
   void createStatusBar();
+  void update_mode_switch_status_label();
+  void update_auto_call_pileup_mode_ui();
+  void update_auto_mode_switch_widget();
   void updateStatusBar();
   void genStdMsgs(QString rpt, bool unconditional = false);
   void genCQMsg();

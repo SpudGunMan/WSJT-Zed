@@ -1572,6 +1572,58 @@ both here.</string>
             </property>
            </widget>
           </item>
+          <item row="2" column="0" colspan="3">
+           <layout class="QHBoxLayout" name="sound_settings_layout">
+            <item>
+             <widget class="QCheckBox" name="tci_audio_check_box">
+              <property name="toolTip">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use TCI Audio when available.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="text">
+               <string>Use TCI Audio (restart required)</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="TCI_spin_box">
+              <property name="toolTip">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Rx audio level&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+              <property name="suffix">
+               <string> dB</string>
+              </property>
+              <property name="prefix">
+               <string>Rx </string>
+              </property>
+              <property name="minimum">
+               <number>-50</number>
+              </property>
+              <property name="maximum">
+               <number>0</number>
+              </property>
+              <property name="singleStep">
+               <number>5</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_TCI">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
          </layout>
         </widget>
        </item>
@@ -3311,7 +3363,7 @@ Right click for insert and delete options.</string>
              </widget>
             </item>
             <item>
-             <spacer name="horizontalSpacer_15">
+            <spacer name="horizontalSpacer_15_otp">
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
@@ -3434,6 +3486,35 @@ Right click for insert and delete options.</string>
         </widget>
        </item>
        <item row="2" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox_HighDPI">
+         <property name="title">
+          <string>GUI tweaks for high-resolution monitors</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_HighDPI">
+          <item row="0" column="0">
+           <widget class="QCheckBox" name="cbHighDPI">
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;HighDPI scaling enables a larger and more proportionally correct display of the controls on 4K monitors (if supported by the OS).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>HighDPI scaling (restart required)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="cbLargerTabWidget">
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Increased height of some control elements.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>Increased height of the tab widget (restart required)</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="3" column="0" colspan="2">
         <spacer name="verticalSpacer_8">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -3448,17 +3529,17 @@ Right click for insert and delete options.</string>
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="tab">
+    <widget class="QWidget" name="wsjtz_tab">
       <attribute name="title">
        <string>WSJT-Z</string>
       </attribute>
-      <layout class="QGridLayout" name="gridLayout_18">
+    <layout class="QGridLayout" name="gridLayout_wsjtz">
        <item row="3" column="1" rowspan="2" colspan="2">
         <widget class="QGroupBox" name="groupBox_13">
          <property name="title">
           <string>Ignore List</string>
          </property>
-         <layout class="QGridLayout" name="gridLayout_17">
+         <layout class="QGridLayout" name="gridLayout_ignore_list">
           <item row="2" column="1">
            <widget class="QSpinBox" name="sb_ignoreListReset">
             <property name="suffix">
@@ -3513,7 +3594,7 @@ Right click for insert and delete options.</string>
          <property name="checkable">
           <bool>true</bool>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_25">
+         <layout class="QHBoxLayout" name="horizontalLayout_autoTXFreq">
           <item>
            <widget class="QRadioButton" name="rb_autoFreqWide">
             <property name="text">
@@ -3536,7 +3617,7 @@ Right click for insert and delete options.</string>
          <property name="currentIndex">
           <number>0</number>
          </property>
-         <widget class="QWidget" name="tab">
+         <widget class="QWidget" name="wsjtz_rx_windows_tab">
           <attribute name="title">
            <string>RX  Windows</string>
           </attribute>
@@ -3765,14 +3846,14 @@ Right click for insert and delete options.</string>
         </spacer>
        </item>
        <item row="0" column="0" colspan="3">
-        <widget class="QGroupBox" name="groupBox_8">
+        <widget class="QGroupBox" name="groupBox_qrzcom">
          <property name="title">
           <string>QRZ.COM</string>
          </property>
          <property name="flat">
           <bool>false</bool>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_23">
+         <layout class="QHBoxLayout" name="horizontalLayout_qrzcom">
           <item>
            <widget class="QLabel" name="label_18">
             <property name="text">
@@ -3823,7 +3904,14 @@ Right click for insert and delete options.</string>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QSpinBox" name="sb_WD_FT8"/>
+           <widget class="QDoubleSpinBox" name="sb_WD_FT8">
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="singleStep">
+             <double>0.250000000000000</double>
+            </property>
+           </widget>
           </item>
           <item row="0" column="0">
            <widget class="QLabel" name="label_16">
@@ -3833,7 +3921,14 @@ Right click for insert and delete options.</string>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QSpinBox" name="sb_WD_FT4"/>
+           <widget class="QDoubleSpinBox" name="sb_WD_FT4">
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="singleStep">
+             <double>0.250000000000000</double>
+            </property>
+           </widget>
           </item>
           <item row="2" column="0">
            <widget class="QLabel" name="label_WD_FT2">
@@ -3843,7 +3938,14 @@ Right click for insert and delete options.</string>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QSpinBox" name="sb_WD_FT2"/>
+           <widget class="QDoubleSpinBox" name="sb_WD_FT2">
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="singleStep">
+             <double>0.250000000000000</double>
+            </property>
+           </widget>
           </item>
          </layout>
         </widget>
@@ -3853,7 +3955,7 @@ Right click for insert and delete options.</string>
          <property name="title">
           <string>Debug</string>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_24">
+         <layout class="QHBoxLayout" name="horizontalLayout_debug">
           <item>
            <widget class="QRadioButton" name="rb_dbg_Screen">
             <property name="text">
