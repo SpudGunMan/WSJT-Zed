@@ -314,6 +314,8 @@ private slots:
   void on_cbMenus_toggled(bool b);
   void on_cbCQonly_toggled(bool b);
   void on_cbAutoSeq_toggled(bool b);
+  void on_cbFirst_toggled(bool checked);
+  void on_respondComboBox_currentIndexChanged(int index);
   void networkError (QString const&);
   void on_ClrAvgButton_clicked();
   void on_actionWSPR_triggered();
@@ -500,6 +502,7 @@ private:
   void switchBand(int row);
   void ZMessage();
   void ZProcess();
+  void clearPounceState();
 
   // Filter cache: parsed once when the QPlainTextEdit changes, reused per-decode.
   // Invalidated by textChanged signals connected in the ctor.

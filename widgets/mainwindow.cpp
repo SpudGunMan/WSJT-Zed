@@ -250,7 +250,7 @@ QString m_hisCall0 = "";
 // Per-cycle dedup buffer for FT8 multi-thread decoder output (race in OMP path
 // of ft8_decodevar.f90). Mirrors wsjtx-orig logic: append every emitted line,
 // skip new lines whose msg substring is already present. Reset at cycle bounds.
-QString earlyDecodes = "";
+QHash<QString, int> earlyDecodesBestSnr;
 
 QSharedMemory mem_qmap("mem_qmap");         //Memory segment to be shared (optionally) with QMAP
 struct {
@@ -1295,6 +1295,16 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
 
     ui->verticalLayout_3->setAlignment(ui->outAttenuation, Qt::AlignHCenter);
     ui->w_callInfo->setVisible(ui->actionCall_info->isChecked());
+    ui->label_3->setText(tr("<a href=\"qrz-lookup\">DX Call</a>"));
+    ui->label_3->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    ui->label_3->setOpenExternalLinks(false);
+    connect(ui->label_3, &QLabel::linkActivated, this, [this](QString const &) {
+      QString dxCall = ui->ci_dxcall->text().trimmed();
+      if (dxCall.isEmpty()) dxCall = ui->dxCallEntry->text().trimmed();
+      if (!dxCall.isEmpty()) {
+        QDesktopServices::openUrl(QUrl("https://www.qrz.com/db/" + dxCall, QUrl::TolerantMode));
+      }
+    });
     ui->l_q_email->setTextInteractionFlags(Qt::TextBrowserInteraction);
     ui->l_q_email->setOpenExternalLinks(true);
     qrzVisible(false);
@@ -1899,6 +1909,7 @@ void MainWindow::readSettings()
   m_minSync=m_settings->value("MinSync",0).toInt();
   ui->syncSpinBox->setValue(m_minSync);
   ui->cbAutoSeq->setChecked (m_settings->value ("AutoSeq", false).toBool());
+  ui->cbFirst->setChecked (ui->respondComboBox->currentIndex() == 1);
   ui->cbRxAll->setChecked (m_settings->value ("RxAll", false).toBool());
 // m_bShMsgs=m_settings->value("ShMsgs",false).toBool();
   m_bSWL=m_settings->value("SWL",false).toBool();
@@ -4163,7 +4174,7 @@ void MainWindow::read_wav_file (QString const& fname)
   // Reset per-cycle dedup buffer for FT8 multi-thread output (mirrors wsjtx-orig)
   if (m_mode == "FT8"
       && (ui->actionUse_multithreaded_FT8_decoder->isChecked() || m_freqNominal > 45000000)) {
-    earlyDecodes = "";
+    earlyDecodesBestSnr.clear();
   }
   // call diskDat() when done
   int i0=fname.lastIndexOf("_");
@@ -5242,8 +5253,8 @@ void MainWindow::readFromStdout()                             //readFromStdout
   auto const sfox    = m_config.superFox();
   auto const miles   = m_config.miles();
   // Mirror wsjtx-orig's earlyDecodes dedup semantics: active when MTD with
-  // ndecoderstart<2 OR VHF/UHF (>45 MHz). Check is done before processing,
-  // append happens here too (orig appends after display; we do it inline).
+  // ndecoderstart<2 OR VHF/UHF (>45 MHz). Check is done before processing.
+  // Keep the strongest SNR per message key within the cycle.
   bool const mtft8 = (m_mode == "FT8")
       && ui->actionUse_multithreaded_FT8_decoder->isChecked();
   bool const hide_ft8_dupes = ui->actionHide_FT8_dupe_messages->isChecked();
@@ -5251,15 +5262,78 @@ void MainWindow::readFromStdout()                             //readFromStdout
       (m_ft8DecoderStart < 2
        || m_freqNominal > 45000000
        || ui->actionReduce_false_decodes->isChecked());
-  while(proc_jt9.canReadLine()) {
-    auto line_read = proc_jt9.readLine ();
-    if (dedup_on && line_read.size() >= 42
-        && earlyDecodes.contains(line_read.mid(23, 19))) {
-      continue;   // already emitted this cycle (MTD or a7/a8 dupes per wsjtx-orig comment)
+  QVector<QByteArray> batch_lines;
+  while (proc_jt9.canReadLine()) {
+    batch_lines.append(proc_jt9.readLine());
+  }
+
+  QVector<QByteArray> lines_to_process;
+  lines_to_process.reserve(batch_lines.size());
+  if (dedup_on) {
+    auto make_dupe_key = [] (QByteArray const& raw_line) {
+      DecodedText const dt {QString::fromUtf8(raw_line.constData())};
+      QString key = dt.messageWords().value(0).simplified();
+      if (key.isEmpty() && raw_line.size() >= 42) {
+        key = QString::fromUtf8(raw_line.mid(23, 19)).simplified();
+      }
+      return key;
+    };
+
+    QHash<QString, int> batch_best_snr;
+    QHash<QString, QByteArray> batch_best_line;
+
+    // First pass: determine strongest line per duplicate key in this batch.
+    for (auto const& raw_line : batch_lines) {
+      if (raw_line.size() >= 42 && raw_line.indexOf("<DecodeFinished>") < 0) {
+        QString const dupe_key = make_dupe_key(raw_line);
+        if (dupe_key.isEmpty()) {
+          continue;
+        }
+        int const snr = DecodedText {QString::fromUtf8(raw_line.constData())}.snr();
+        auto const it = batch_best_snr.constFind(dupe_key);
+        if (it == batch_best_snr.constEnd() || snr > it.value()) {
+          batch_best_snr.insert(dupe_key, snr);
+          batch_best_line.insert(dupe_key, raw_line);
+        }
+      }
     }
-    if (dedup_on && line_read.size() >= 42) {
-      earlyDecodes.append(line_read);
+
+    QSet<QString> emitted_keys;
+    for (auto const& raw_line : batch_lines) {
+      if (!(raw_line.size() >= 42 && raw_line.indexOf("<DecodeFinished>") < 0)) {
+        lines_to_process.append(raw_line);
+        continue;
+      }
+
+      QString const dupe_key = make_dupe_key(raw_line);
+      if (dupe_key.isEmpty()) {
+        lines_to_process.append(raw_line);
+        continue;
+      }
+      if (emitted_keys.contains(dupe_key) || raw_line != batch_best_line.value(dupe_key)) {
+        continue;
+      }
+
+      int const snr = batch_best_snr.value(dupe_key, std::numeric_limits<int>::min());
+      auto const cycle_it = earlyDecodesBestSnr.constFind(dupe_key);
+      if (cycle_it != earlyDecodesBestSnr.constEnd()) {
+        // Preserve no-duplicate display behavior across stdout batches in the
+        // same cycle, but keep best-SNR metadata up to date internally.
+        if (snr > cycle_it.value()) {
+          earlyDecodesBestSnr.insert(dupe_key, snr);
+        }
+        continue;
+      }
+
+      earlyDecodesBestSnr.insert(dupe_key, snr);
+      emitted_keys.insert(dupe_key);
+      lines_to_process.append(raw_line);
     }
+  } else {
+    lines_to_process = batch_lines;
+  }
+
+  for (auto line_read : lines_to_process) {
     if (m_mode == "FT8" and m_specOp == SpecOp::FOX and m_ActiveStationsWidget != NULL) { // see if we should add this to ActiveStations window
       QString the_line = QString(line_read);
       if (!m_ActiveStationsWidget->wantedOnly() ||
@@ -6171,7 +6245,7 @@ void MainWindow::guiUpdate()
     if (s_in_min == 10 || s_in_min == 25 || s_in_min == 40 || s_in_min == 55) {
       static int s_lastReset = -1;
       if (s_in_min != s_lastReset) {
-        earlyDecodes = "";
+        earlyDecodesBestSnr.clear();
         m_nDecodes = 0;
         ndecodes_label.setText("0");
         s_lastReset = s_in_min;
@@ -11981,6 +12055,28 @@ void MainWindow::on_cbAutoSeq_toggled(bool b)
                            or m_mode=="Q65") and b);
 }
 
+void MainWindow::on_cbFirst_toggled(bool checked)
+{
+  auto const desired_index = checked ? 1 : 0;   // CQ: First or CQ: None
+  if (ui->respondComboBox->currentIndex() != desired_index)
+    {
+      auto const blocked = ui->respondComboBox->blockSignals(true);
+      ui->respondComboBox->setCurrentIndex(desired_index);
+      ui->respondComboBox->blockSignals(blocked);
+    }
+}
+
+void MainWindow::on_respondComboBox_currentIndexChanged(int index)
+{
+  auto const call_first = (index == 1);         // only CQ: First means checked
+  if (ui->cbFirst->isChecked() != call_first)
+    {
+      auto const blocked = ui->cbFirst->blockSignals(true);
+      ui->cbFirst->setChecked(call_first);
+      ui->cbFirst->blockSignals(blocked);
+    }
+}
+
 void MainWindow::on_measure_check_box_stateChanged (int state)
 {
   m_config.enable_calibration (Qt::Checked != state);
@@ -14065,14 +14161,15 @@ void MainWindow::on_actionClear_triggered() {
 
 void MainWindow::on_cb_autoCallNext_toggled(bool b) {
     if (b) {
-       ui->dxCallEntry->setStyleSheet("background-color: #00aa00;");
-       ui->cbAutoCall->setChecked(false);
-       ui->cbAutoCQ->setChecked(false);
-       genStdMsgs("");
-       on_txb1_clicked();
-       if (ui->cb_autoModeSwitch->isChecked()) resetAutoSwitch();
+      ui->dxCallEntry->setStyleSheet("background-color: #00aa00;");
+      ui->cbAutoCall->setChecked(false);
+      ui->cbAutoCQ->setChecked(false);
+      genStdMsgs("");
+      on_txb1_clicked();
+      if (ui->cb_autoModeSwitch->isChecked()) resetAutoSwitch();
     } else {
-       ui->dxCallEntry->setStyleSheet("");
+      ui->dxCallEntry->setStyleSheet("");
+      clearPounceState();
     }
 }
 
@@ -14814,8 +14911,7 @@ void MainWindow::switchBand(int row) {
         ui->stopTxButton->click ();
         ui->bandComboBox->setCurrentIndex (row);
         on_bandComboBox_activated (row);
-        m_priorityCall = QString();
-        m_priorityCallPreferCQTarget = false;
+        clearPounceState();
         m_lastCall = QString();
         clearDX();
         busySlots.clear();
@@ -14860,8 +14956,7 @@ void MainWindow::ZProcess ()
     if (m_zdebug) log("ZProcess: ENTRY");
     if (m_transmitting)
     {
-        m_priorityCall = QString();
-      m_priorityCallPreferCQTarget = false;
+        clearPounceState();
         if (m_zdebug) log("ZProcess: EXIT (Transmitting)");
         return;
     }
@@ -14898,8 +14993,11 @@ void MainWindow::ZProcess ()
         useNextCall();
         on_txb1_clicked();
         auto_tx_mode(true);
+        QString highlightCall = m_priorityCall;
         ui->cb_autoCallNext->setChecked(false);
-        if (m_config.highlightDX()) ui->decodedTextBrowser->highlight_callsign(m_priorityCall, QColor(255,0,0), QColor(255,255,255), true);
+        if (m_config.highlightDX() && !highlightCall.isEmpty()) {
+            ui->decodedTextBrowser->highlight_callsign(highlightCall, QColor(255,0,0), QColor(255,255,255), true);
+        }
 
     }
 
@@ -14992,8 +15090,7 @@ void MainWindow::ZProcess ()
 
     m_maxDistance = 0 ;
     m_maxSignal = -30;
-    m_priorityCall = QString();
-    m_priorityCallPreferCQTarget = false;
+    clearPounceState();
     m_beeped = false;
     if (m_zdebug) log("ZProcess: EXIT");
 }
@@ -15003,11 +15100,20 @@ void MainWindow::on_pb_WDReset_clicked() {
 }
 
 void MainWindow::resetAutoSwitch() {
-        ui->le_autoCallLeft->setText(QString::number(ui->sb_autoCallCount->value()));
-        ui->le_autoCQLeft->setText(QString::number(ui->sb_autoCQCount->value()));
-        m_priorityCall = QString();
-  m_priorityCallPreferCQTarget = false;
-  update_mode_switch_status_label ();
+    ui->le_autoCallLeft->setText(QString::number(ui->sb_autoCallCount->value()));
+    ui->le_autoCQLeft->setText(QString::number(ui->sb_autoCQCount->value()));
+    clearPounceState();
+    update_mode_switch_status_label ();
+}
+
+void MainWindow::clearPounceState()
+{
+    m_priorityCall = QString();
+    m_priorityCallPreferCQTarget = false;
+    m_prioGrid = QString();
+    m_nextRpt = QString();
+    m_prioTxFirst = false;
+    m_prioFreq = 0;
 }
 
 double MainWindow::watchdog() {

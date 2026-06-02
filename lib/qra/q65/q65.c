@@ -59,12 +59,12 @@ int q65_init(q65_codec_ds *pCodec, 	const qracode *pqracode)
 	pCodec->pQraCode = pqracode;
 
 	// allocate buffers used by encoding/decoding functions
-	pCodec->x			= (int*)malloc(pqracode->K*sizeof(int));
-	pCodec->y			= (int*)malloc(pqracode->N*sizeof(int));
-	pCodec->qra_v2cmsg	= (float*)malloc(pqracode->NMSG*pqracode->M*sizeof(float));
-	pCodec->qra_c2vmsg	= (float*)malloc(pqracode->NMSG*pqracode->M*sizeof(float));
-	pCodec->ix			= (float*)malloc(pqracode->N*pqracode->M*sizeof(float));
-	pCodec->ex			= (float*)malloc(pqracode->N*pqracode->M*sizeof(float));
+	pCodec->x			= (int*)malloc((unsigned long)pqracode->K*sizeof(int));
+	pCodec->y			= (int*)malloc((unsigned long)pqracode->N*sizeof(int));
+	pCodec->qra_v2cmsg	= (float*)malloc((unsigned long)pqracode->NMSG*pqracode->M*sizeof(float));
+	pCodec->qra_c2vmsg	= (float*)malloc((unsigned long)pqracode->NMSG*pqracode->M*sizeof(float));
+	pCodec->ix			= (float*)malloc((unsigned long)pqracode->N*pqracode->M*sizeof(float));
+	pCodec->ex			= (float*)malloc((unsigned long)pqracode->N*pqracode->M*sizeof(float));
 
 	if (pCodec->x== NULL			||
 		pCodec->y== NULL			||
