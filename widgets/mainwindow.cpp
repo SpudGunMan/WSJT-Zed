@@ -3350,6 +3350,19 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
       // Z
       if (m_config.wdResetAnywhere())
       tx_watchdog (false);
+      if (object == ui->EraseButton) {
+        auto const *mouseEvent = static_cast<QMouseEvent const *> (event);
+        if (mouseEvent->button() == Qt::RightButton) {
+          ui->tx1->clear();
+          ui->tx2->clear();
+          ui->tx3->clear();
+          ui->tx4->clear();
+          ui->tx5->clearEditText();
+          ui->dxCallEntry->clear();
+          ui->dxGridEntry->clear();
+          return true;
+        }
+      }
       break;
 
     case QEvent::ChildAdded:
@@ -6207,6 +6220,8 @@ void MainWindow::on_EraseButton_clicked ()
     ui->tx3->clear();
     ui->tx4->clear();
     ui->tx5->clearEditText();
+    ui->dxCallEntry->clear();
+    ui->dxGridEntry->clear();
     m_nEraseClicks = 0;
   }
 
@@ -7236,7 +7251,6 @@ void MainWindow::on_txrb4_doubleClicked ()
   auto const& my_callsign = m_config.my_callsign ();
   auto is_compound = my_callsign != m_baseCall;
   m_send_RR73 = !((is_compound && !shortList (my_callsign)) || m_send_RR73);
-  if((m_mode=="FT4" or m_mode=="FT2")) m_send_RR73=true;
   genStdMsgs (m_rpt);
 }
 
@@ -7313,7 +7327,6 @@ void MainWindow::on_txb4_doubleClicked()
   auto const& my_callsign = m_config.my_callsign ();
   auto is_compound = my_callsign != m_baseCall;
   m_send_RR73 = !((is_compound && !shortList (my_callsign)) || m_send_RR73);
-  if((m_mode=="FT4" or m_mode=="FT2")) m_send_RR73=true;
   genStdMsgs (m_rpt);
 }
 
@@ -7695,17 +7708,16 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
         // "MYCALL DXCALL R GRID" — DX station confirmed our exchange and sent their grid.
         // In VHF contest modes (NA_VHF/WW_DIGI/ARRL_DIGI/Q65_PILEUP) the protocol
         // requires us to reply with RRR before logging, so just advance to ROGERS.
-        // In all other modes the exchange is complete: log now and queue Tx4 (RRR).
+        // In all other modes queue Tx4 (RRR) and keep the QSO open so the normal
+        // closing path (RRR/RR73/73) can finish the contact.
         bool vhf_contest = (SpecOp::NA_VHF == m_specOp || SpecOp::WW_DIGI == m_specOp
                             || SpecOp::ARRL_DIGI == m_specOp || SpecOp::Q65_PILEUP == m_specOp);
         setTxMsg (4);
         m_QSOProgress = ROGERS;
         if (!vhf_contest) {
-          if (m_config.prompt_to_log () || m_config.autoLog ()) {
-            logQSOTimer.start (0);
-          } else {
-            cease_auto_Tx_after_QSO ();
-          }
+          // Do not log immediately here; keep the QSO open so TX4 (RRR)
+          // can actually be sent and the normal closing path (RRR/RR73/73)
+          // can complete the QSO.
         }
       } else {  // no grid on end of msg
         auto const& word_3 = message_words.at (4);
