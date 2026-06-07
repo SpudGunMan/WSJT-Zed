@@ -284,6 +284,21 @@ namespace
           || (type == 6 && !msg_parts.filter ("73").isEmpty ()));
   }
 
+  bool token_matches_call (QString const& token, QString const& call)
+  {
+    auto const& base_call = Radio::base_callsign (call);
+    return !token.isEmpty ()
+      && (token == call
+          || token == base_call
+          || token.endsWith ("/" + base_call)
+          || token.startsWith (base_call + "/"));
+  }
+
+  bool composite_rr73 (QStringList const& words)
+  {
+    return words.size () > 1 && words.at (1) == "RR73;";
+  }
+
   int ms_minute_error ()
   {
     auto const& now = QDateTime::currentDateTimeUtc ();
@@ -330,6 +345,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   m_rx_audio_buffer_frames {0},
   m_tx_audio_buffer_frames {0},
   m_msErase {0},
+  m_nEraseClicks {0},
   m_secBandChanged {0},
   m_freqNominal {0},
   m_freqNominalPeriod {0},
@@ -476,6 +492,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   m_tx_when_ready {false},
   m_transmitting {false},
   m_tune {false},
+  m_autoCQWatchdogPending {false},
   m_tx_watchdog {false},
   m_block_pwr_tooltip {false},
   m_PwrBandSetOK {true},
@@ -5975,6 +5992,12 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
   bool const have_selected_dx = !selected_dx_base.isEmpty ();
   auto msg_no_hash = message.clean_string();
   msg_no_hash = msg_no_hash.mid(22).remove("<").remove(">");
+  auto const& raw_words = msg_no_hash.split(" ",SkipEmptyParts);
+  bool composite_rr73_detected = composite_rr73 (raw_words);
+  bool composite_rr73_for_me = composite_rr73_detected
+    && (token_matches_call (raw_words.value (0), m_config.my_callsign ())
+        || token_matches_call (raw_words.value (0), m_baseCall));
+  bool terminal_signoff = is_73 || composite_rr73_detected;
 
   if (m_zdebug) log("msg_no_hash: " + msg_no_hash);
   if (m_zdebug) log("isStandardMessage: " +  QString::number(message.isStandardMessage()));
@@ -5995,7 +6018,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                || message_words.contains ("DE")))
           || (!message.isStandardMessage () && m_mode != "MSK144")); // free text 73/RR73 except for MSK
 
-    auto const& w = msg_no_hash.split(" ",SkipEmptyParts);
+    auto const& w = raw_words;
     QString w2;
     int nrpt=0;
     if (w.size () > 2)
@@ -6042,6 +6065,9 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     if (m_auto
         && auto_qrm_guard_state
         && (SpecOp::HOUND != m_specOp) && qrm_stop_window_match //
+        && (m_QSOProgress==REPLYING  or (!ui->tx1->isEnabled () and m_QSOProgress==REPORT))
+        && (SpecOp::HOUND != m_specOp) && qAbs (ui->TxFreqSpinBox->value () - df) <= int (stop_tolerance) //
+      && !composite_rr73_for_me
         && message_words.at (2) != "DE"
         && !message_words.at (2).contains (QRegularExpression {"(^(CQ|QRZ))|" + m_baseCall})
         && have_selected_dx
@@ -6063,7 +6089,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                          // being called and not already in a QSO
                          && (message_words.at(3).contains(Radio::base_callsign(ui->dxCallEntry->text()))
                              or bEU_VHF))
-                        || message_words.at(1) == m_baseCall // <de-call> RR73; ...
+                      || composite_rr73_for_me // <de-call> RR73; ...
                         // type 2 compound replies
                         || (within_tolerance &&
                             (acceptable_73 ||
@@ -6088,7 +6114,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                && (ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked())
                && !(have_selected_dx && directed_with_selected_dx && !directed_to_me)
                && m_QSOProgress == CALLING
-               && !(message_words.filter (QRegularExpression {"^(73|RR73|RRR)$"}).size())
+               && !terminal_signoff
                && (m_config.processTailenders() || m_lastCall == hiscall)
                && (!m_transmitting)
                )
@@ -6161,18 +6187,30 @@ void MainWindow::killFile ()
 
 void MainWindow::on_EraseButton_clicked ()
 {
-  qint64 ms=QDateTime::currentMSecsSinceEpoch();
-  ui->decodedTextBrowser2->erase ();
-  if(m_mode=="WSPR" or m_mode=="Echo" or m_mode=="FST4W") {
-    ui->decodedTextBrowser->erase ();
-  } else {
-    if((ms-m_msErase)<500) {
-      ui->decodedTextBrowser->erase ();
-      // Z
-      if (m_unfilteredView) m_unfilteredView->erase();
-    }
+  qint64 ms = QDateTime::currentMSecsSinceEpoch();
+  if ((ms - m_msErase) > 500) {
+    m_nEraseClicks = 0;
   }
-  m_msErase=ms;
+
+  ++m_nEraseClicks;
+  ui->decodedTextBrowser2->erase ();
+
+  bool eraseBoth = (m_mode=="WSPR" or m_mode=="Echo" or m_mode=="FST4W") || (m_nEraseClicks >= 2);
+  if (eraseBoth) {
+    ui->decodedTextBrowser->erase (); 
+    if (m_unfilteredView) m_unfilteredView->erase();
+  }
+
+  if (m_nEraseClicks >= 3) {
+    ui->tx1->clear();
+    ui->tx2->clear();
+    ui->tx3->clear();
+    ui->tx4->clear();
+    ui->tx5->clearEditText();
+    m_nEraseClicks = 0;
+  }
+
+  m_msErase = ms;
 }
 
 void MainWindow::band_activity_cleared ()
@@ -6365,7 +6403,16 @@ void MainWindow::guiUpdate()
     }
     update_watchdog_label ();
     if (wd_enabled && m_idleMinutes >= wd_limit) {
-      tx_watchdog (true);       // disable transmit
+      if (ui->cbAutoCQ->isChecked()) {
+        if (m_bTxTime) {
+          m_autoCQWatchdogPending = false;
+          tx_watchdog (true);       // disable transmit
+        } else if (!m_autoCQWatchdogPending) {
+          m_autoCQWatchdogPending = true;
+        }
+      } else {
+        tx_watchdog (true);       // disable transmit
+      }
     }
 
     double fTR=float((ms%int(1000.0*m_TRperiod)))/int(1000.0*m_TRperiod);
@@ -7449,7 +7496,12 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
     }
   }
 
-  bool is_73 = message_words.filter (QRegularExpression {"^(73|RR73)$"}).size ();
+  bool composite_rr73_detected = composite_rr73 (w);
+  bool composite_rr73_for_me = composite_rr73_detected
+    && (token_matches_call (w.value (0), m_config.my_callsign ())
+        || token_matches_call (w.value (0), m_baseCall));
+  bool is_73 = message_words.filter (QRegularExpression {"^(73|RR73)$"}).size ()
+    || composite_rr73_detected;
   if (!is_73 and !message.isStandardMessage() and !message.clean_string ().contains("<")) {
     qDebug () << "Not processing message - hiscall:" << hiscall << "hisgrid:" << hisgrid
               << message.clean_string () << message.isStandardMessage();
@@ -7639,11 +7691,13 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
       } else {  // no grid on end of msg
         auto const& word_3 = message_words.at (4);
         auto word_3_as_number = word_3.toInt ();
+        bool received_73 = (word_3_as_number == 73);
+        bool received_rr73 = ("RR73" == word_3);
         if (("RRR" == word_3
-             || (word_3_as_number == 73 && ROGERS == m_QSOProgress)
-             || "RR73" == word_3
+             || (received_73 && m_QSOProgress >= ROGERS)
+             || received_rr73
              || ("R" == word_3 && m_QSOProgress != REPORT))) {
-          if((m_mode=="FT4" or m_mode=="FT2") and "RR73" == word_3) m_dateTimeRcvdRR73=QDateTime::currentDateTimeUtc();
+          if((m_mode=="FT4" or m_mode=="FT2") and received_rr73) m_dateTimeRcvdRR73=QDateTime::currentDateTimeUtc();
           m_bTUmsg=false;
           m_nextCall="";   //### Temporary: disable use of "TU;" message
           if(SpecOp::RTTY == m_specOp and m_nextCall!="") {
@@ -7677,8 +7731,20 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
                 m_ntx=4;
                 ui->txrb4->setChecked(true);
               }
+            else if (received_rr73
+                     || (received_73 && m_QSOProgress >= ROGERS))
+              {
+                if (m_config.prompt_to_log() || m_config.autoLog()) {
+                  logQSOTimer.start(0);
+                }
+                else {
+                  cease_auto_Tx_after_QSO ();
+                }
+                m_ntx=6;
+                ui->txrb6->setChecked(true);
+              }
             else if ((m_QSOProgress > CALLING && m_QSOProgress < ROGERS)
-                     || word_3.contains (QRegularExpression {"^RR(?:R|73)$"}))
+                     || "RRR" == word_3)
               {
                 m_ntx=5;
                 ui->txrb5->setChecked(true);
@@ -7757,8 +7823,9 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
           }
       }
     }
-    else if (5 == message_words.size ()
-             && m_baseCall == message_words.at (1)) {
+    else if (composite_rr73_for_me
+             || (5 == message_words.size ()
+                 && m_baseCall == message_words.at (1))) {
       // dual Fox style message, possibly from MSHV
       if (m_config.prompt_to_log() || m_config.autoLog()) {
         logQSOTimer.start(0);
@@ -11990,7 +12057,13 @@ void MainWindow::tx_watchdog (bool triggered)
         }
 
       if (ui->cbAutoCQ->isChecked()) {
+                  bool const old_block = ui->txrb6->blockSignals(true);
                   ui->txrb6->setChecked (true);
+                  ui->txrb6->blockSignals(old_block);
+                  m_ntx = 6;
+                  if (ui->txrb6->text().contains (QRegularExpression {"^(CQ|QRZ) "}))
+                    set_dateTimeQSO(-1);
+                  auto_tx_mode(true);
                   m_idleMinutes = 0;
                   m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
                   update_watchdog_label ();
@@ -12008,6 +12081,7 @@ void MainWindow::tx_watchdog (bool triggered)
   else
     {
       if (m_zdebug) log("TXWatchdog: FALSE");
+      m_autoCQWatchdogPending = false;
       m_idleMinutes = 0;
       m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
       update_watchdog_label ();

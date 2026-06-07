@@ -588,6 +588,7 @@ private:
   QThread m_audioThread;
 
   qint64  m_msErase;
+  int     m_nEraseClicks;
   qint64  m_secBandChanged;
   qint64  m_freqMoon;
   qint64  m_fullFoxCallTime;
@@ -988,6 +989,7 @@ private:
   bool m_tx_when_ready;
   bool m_transmitting;
   bool m_tune;
+  bool m_autoCQWatchdogPending;
   bool m_tx_watchdog;           // true when watchdog triggered
   bool m_block_pwr_tooltip;
   bool m_PwrBandSetOK;
