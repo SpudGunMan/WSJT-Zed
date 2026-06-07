@@ -6202,7 +6202,6 @@ void MainWindow::on_EraseButton_clicked ()
   }
 
   if (m_nEraseClicks >= 3) {
-    ui->tx1->clear();
     ui->tx2->clear();
     ui->tx3->clear();
     ui->tx4->clear();
