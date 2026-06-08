@@ -551,6 +551,14 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
      ui->decodedTextBrowser->addAction(ui->actionCopy);
   ui->decodedTextBrowser->setBandActivity(true);
 
+  if (m_config.spot_to_psk_reporter()) {
+    m_pskReporterView.reset(new PSKReporterWidget {nullptr, &m_config, &m_logBook});
+    connect(this, &MainWindow::finished, m_pskReporterView.data(), &QWidget::close);
+    connect(m_pskReporterView.data(), &PSKReporterWidget::clicked, this, &MainWindow::pskTableClicked);
+    connect(m_pskReporterView.data(), &PSKReporterWidget::reportsUpdated, this, &MainWindow::pskReporterReportsUpdated);
+    m_pskReporterView->setFont(m_config.decoded_text_font());
+    m_pskReporterView->hide();
+  }
 
   m_optimizingProgress.setWindowModality (Qt::WindowModal);
   m_optimizingProgress.setAutoReset (false);
@@ -1668,6 +1676,7 @@ void MainWindow::writeSettings()
 
   // Misc tab
   m_settings->setValue ("autoModeSwitchEnabled", ui->cb_autoModeSwitch->isChecked());
+  m_settings->setValue ("autoCQAlternateEvenOdd", ui->cbAutoCQAlternateEvenOdd->isChecked());
   m_settings->setValue ("smartModeSwitchEnabled", m_smartModeSwitch);
   m_settings->setValue ("autoCQCount", ui->sb_autoCQCount->value ());
   m_settings->setValue ("autoCallCount", ui->sb_autoCallCount->value ());
@@ -1707,6 +1716,7 @@ void MainWindow::readSettings()
   ui->dxGridEntry->setText (m_settings->value ("DXgrid", QString {}).toString ());
   m_path = m_settings->value("MRUdir", m_config.save_directory ().absolutePath ()).toString ();
   m_txFirst = m_settings->value("TxFirst",false).toBool();
+  m_autoCQAlternateEvenOddNext = !m_txFirst;
   auto displayAstro = m_settings->value ("AstroDisplayed", false).toBool ();
   auto displayMsgAvg = m_settings->value ("MsgAvgDisplayed", false).toBool ();
   auto displayFoxLog = m_settings->value ("FoxLogDisplayed", false).toBool ();
@@ -1886,6 +1896,7 @@ void MainWindow::readSettings()
   ui->cb_filtering->setChecked(m_settings->value("filter_enabled", true).toBool());
   // Misc tab
   ui->cb_autoModeSwitch->setChecked(m_settings->value("autoModeSwitchEnabled", false).toBool());
+  ui->cbAutoCQAlternateEvenOdd->setChecked(m_settings->value("autoCQAlternateEvenOdd", false).toBool());
   m_smartModeSwitch = m_settings->value("smartModeSwitchEnabled", false).toBool();
   update_auto_mode_switch_widget ();
   ui->sb_autoCQCount->setValue(m_settings->value("autoCQCount", 5).toInt());
@@ -2012,7 +2023,7 @@ void MainWindow::readSettings()
   if (displayQSYMonitor) on_actionQSY_Monitor_triggered();
   // Z
   if (showRawView) on_actionUnfiltered_View_triggered();
-  if (showPskView) on_actionPSKReporter_triggered();
+  if (showPskView && m_config.spot_to_psk_reporter()) on_actionPSKReporter_triggered();
   if (m_TxFirstLock) ui->txFirstCheckBox->setStyleSheet("background-color: #ff0000;");
 }
 
@@ -5689,19 +5700,25 @@ void MainWindow::readFromStdout()                             //readFromStdout
                   if (ui->actionHide_AP_info->isVisible() && ui->actionHide_AP_info->isChecked()) {
                     static QRegularExpression const kReAP {
                       R"(\s+(?:\?\s+)?(?:a[1-9]|q[1-9][0-9*]?)\b)"};
-                    QString stripped = line_read;
-                    stripped.replace(kReAP, "");
-                    DecodedText decodedtextNoAP {stripped};
-                    ui->decodedTextBrowser->displayDecodedText(decodedtextNoAP,m_baseCall,m_mode,dxcc,
-                                         m_logBook,m_currentBand,m_config.ppfx(),
-                                         ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
-                                         haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
-                  } else {
-                    ui->decodedTextBrowser->displayDecodedText(decodedtext1,m_baseCall,m_mode,dxcc,
-                                         m_logBook,m_currentBand,m_config.ppfx(),
-                                         ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
-                                         haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
+                  QString stripped = line_read;
+                  stripped.replace(kReAP, "");
+                  DecodedText decodedtextNoAP {stripped};
+                  ui->decodedTextBrowser->displayDecodedText(decodedtextNoAP,m_baseCall,m_mode,dxcc,
+                                                             m_logBook,m_currentBand,m_config.ppfx(),
+                                                             ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
+                                                             haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
+                  if (m_pskReporterReceivers.contains(decodedtextNoAP.call().toUpper())) {
+                      ui->decodedTextBrowser->highlight_callsign_line(decodedtextNoAP.call(), QColor{}, QColor{}, false, true);
                   }
+              } else {
+                  ui->decodedTextBrowser->displayDecodedText(decodedtext1,m_baseCall,m_mode,dxcc,
+                                                             m_logBook,m_currentBand,m_config.ppfx(),
+                                                             ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
+                                                             haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
+                  if (m_pskReporterReceivers.contains(decodedtext1.call().toUpper())) {
+                      ui->decodedTextBrowser->highlight_callsign_line(decodedtext1.call(), QColor{}, QColor{}, false, true);
+                  }
+              }
 
                   if (ui->dxCallEntry->text() == deCall && m_config.highlightDX())
                   {
@@ -7156,6 +7173,7 @@ void MainWindow::ba2msg(QByteArray ba, char message[])             //ba2msg()
 void MainWindow::on_txFirstCheckBox_stateChanged(int nstate)        //TxFirst
 {
   m_txFirst = (nstate==2);
+  m_autoCQAlternateEvenOddNext = !m_txFirst;
 }
 
 void MainWindow::set_dateTimeQSO(int m_ntx)
@@ -7655,7 +7673,16 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
       // Without this, WD expiring during a long CQ campaign blocks the
       // very next TX cycle, so the reply never goes out (worst on FT2
       // where TR period is 2s and many CQ cycles fit inside one minute).
-      tx_watchdog (false);
+      bool postSignoffResponse = QSettings().value("postSignoffWatchdog", true).toBool()
+          && (m_QSOProgress == SIGNOFF || m_sentFirst73)
+          && message_words.size() > 4
+          && message_words.at(4).startsWith('R')
+          && (message_words.at(2).contains(m_baseCall) || "DE" == message_words.at(2));
+      if (postSignoffResponse) {
+          if (m_zdebug) log("post-signoff response received, leaving watchdog active");
+      } else {
+          tx_watchdog (false);
+      }
       if(message_words.at(4).contains(grid_regexp) and SpecOp::EU_VHF!=m_specOp) {
         if((SpecOp::NA_VHF==m_specOp or SpecOp::WW_DIGI==m_specOp or
             SpecOp::ARRL_DIGI==m_specOp or SpecOp::Q65_PILEUP==m_specOp)
@@ -13702,6 +13729,14 @@ void MainWindow::on_cbAutoCQ_toggled(bool b)
     if (b) {
         ui->cbAutoCall->setChecked(false);
         ui->cbAutoCall->setEnabled(false);
+        if (ui->cb_autoModeSwitch->isChecked() && ui->cbAutoCQAlternateEvenOdd->isChecked()) {
+          bool newTxFirst = !ui->txFirstCheckBox->isChecked();
+          ui->txFirstCheckBox->blockSignals(true);
+          ui->txFirstCheckBox->setChecked(newTxFirst);
+          ui->txFirstCheckBox->blockSignals(false);
+          m_txFirst = newTxFirst;
+          m_autoCQAlternateEvenOddNext = !newTxFirst;
+        }
         ui->cbFirst->setChecked(true);
         ui->cbAutoSeq->setChecked(true);
         ui->txrb6->setChecked(true);
@@ -14975,6 +15010,7 @@ void MainWindow::update_auto_mode_switch_widget()
   ui->cb_autoModeSwitch->setTitle (
       m_smartModeSwitch ? tr ("Smart Mode Switching") : tr ("Mode Switching"));
   ui->cb_autoModeSwitch->setStyleSheet ("");
+  ui->cbAutoCQAlternateEvenOdd->setEnabled(ui->cb_autoModeSwitch->isChecked());
 }
 
 void MainWindow::toggleBands() {
@@ -15192,6 +15228,15 @@ void MainWindow::ZProcess ()
                                     bool txf = !(fmod(periodTotal/m_TRperiod, 2) == 0);
                                     ui->txFirstCheckBox->setChecked(txf);
                             }
+                            ui->cbAutoCall->setEnabled(false);
+                            ui->cbFirst->setChecked(true);
+                            ui->cbAutoSeq->setChecked(true);
+                            ui->txrb6->setChecked(true);
+                            if (m_smartModeSwitch && ui->cb_autoModeSwitch->isChecked()) {
+                              ui->cbHoldTxFreq->setChecked(true);
+                            }
+                            resetAutoSwitch();
+                            if (!m_autoModeSwitch) clearDX();
                             if (m_zdebug) log("ZProcess: Switched to AutoCQ");
                         } else {
                             toggleBands();
@@ -15410,18 +15455,34 @@ void MainWindow::clearRXWindows() {
 }
 
 void MainWindow::on_actionPSKReporter_triggered() {
-    if (m_pskReporterView && m_pskReporterView->isVisible()) {
-        m_pskReporterView->hide();
+    if (!m_config.spot_to_psk_reporter()) {
+        if (m_pskReporterView && m_pskReporterView->isVisible()) {
+            m_pskReporterView->hide();
+        }
+        showStatusMessage(tr("PSK Reporter is disabled in settings"));
+        return;
+    }
+
+    if (m_pskReporterView) {
+        if (m_pskReporterView->isVisible()) {
+            m_pskReporterView->hide();
+        } else {
+            m_pskReporterView->restoreGeometry(m_pskReporterViewGeometry);
+            m_pskReporterView->showNormal ();
+            m_pskReporterView->setFont(m_config.decoded_text_font ());
+            m_pskReporterView->raise ();
+            m_pskReporterView->activateWindow ();
+        }
     } else {
         m_pskReporterView.reset (new PSKReporterWidget {nullptr, &m_config, &m_logBook});
-        connect (this, &MainWindow::finished, m_pskReporterView.data (), &UnfilteredView::close);
+        connect (this, &MainWindow::finished, m_pskReporterView.data (), &QWidget::close);
+        connect(m_pskReporterView.data(), &PSKReporterWidget::clicked, this, &MainWindow::pskTableClicked);
+        connect(m_pskReporterView.data(), &PSKReporterWidget::reportsUpdated, this, &MainWindow::pskReporterReportsUpdated);
         m_pskReporterView->restoreGeometry(m_pskReporterViewGeometry);
         m_pskReporterView->showNormal ();
         m_pskReporterView->setFont(m_config.decoded_text_font ());
         m_pskReporterView->raise ();
         m_pskReporterView->activateWindow ();
-
-        connect(m_pskReporterView.data(), &PSKReporterWidget::clicked, this, &MainWindow::pskTableClicked);
     }
 }
 
@@ -15460,6 +15521,22 @@ void MainWindow::pskTableClicked(QString callsign, QString band) {
     useNextCall();
     on_txb1_clicked();
     auto_tx_mode(true);
+}
+
+void MainWindow::pskReporterReportsUpdated(QStringList const& receiver_callsigns) {
+    QSet<QString> next;
+    for (auto const& call : receiver_callsigns) {
+        next.insert(call.toUpper());
+    }
+    for (auto const& oldCall : m_pskReporterReceivers) {
+        if (!next.contains(oldCall)) {
+            ui->decodedTextBrowser->highlight_callsign_line(oldCall, QColor {}, QColor {}, false, false);
+        }
+    }
+    for (auto const& call : next) {
+        ui->decodedTextBrowser->highlight_callsign_line(call, QColor {}, QColor {}, false, true);
+    }
+    m_pskReporterReceivers = next;
 }
 
 void MainWindow::logSlots() {
