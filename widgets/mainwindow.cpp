@@ -7648,6 +7648,13 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
     bool bContestOK=(m_mode=="FT4" or m_mode=="FT8" or m_mode=="FT2" or m_mode=="Q65" or m_mode=="MSK144");
     bool const both_nonstandard_77bit =
       is77BitMode () && !stdCall (m_config.my_callsign ()) && !stdCall (hiscall);
+    bool addressed_to_me = (message_words.at(2).contains(m_baseCall)
+                             || (message_words.size() > 3 && message_words.at(3).contains(m_baseCall))
+                             || "DE" == message_words.at(2)
+                             || (message_words.size() > 3 && "DE" == message_words.at(3)));
+    bool addressed_to_partner = ((message_words.size() > 1 && message_words.at(1).contains(qso_partner_base_call))
+                                 || (message_words.size() > 2 && message_words.at(2).contains(qso_partner_base_call))
+                                 || (message_words.size() > 3 && message_words.at(3).contains(qso_partner_base_call)));
 
     // In 77-bit type-4 exchanges with two nonstandard calls, report-bearing
     // messages are not representable. If both sides keep exchanging plain
@@ -7665,9 +7672,11 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
       }
     }
     else if(message_words.size () > 4   // enough fields for a normal message
-       && (message_words.at(2).contains(m_baseCall) || "DE" == message_words.at(2))
-       && (message_words.at(3).contains(qso_partner_base_call) or m_bDoubleClicked
-           or bEU_VHF_w2 or (m_QSOProgress==CALLING))) {
+       && addressed_to_me
+       && (addressed_to_partner
+           || m_bDoubleClicked
+           || bEU_VHF_w2
+           || (m_QSOProgress==CALLING))) {
       // Reset Tx watchdog when an incoming message addresses us — someone
       // replied to our CQ or we're already in a QSO with the sender.
       // Without this, WD expiring during a long CQ campaign blocks the
@@ -7881,10 +7890,9 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
             return;
           }
       }
-    }
-    else if (composite_rr73_for_me
-             || (5 == message_words.size ()
-                 && m_baseCall == message_words.at (1))) {
+} else if (composite_rr73_for_me
+           || (5 == message_words.size()
+               && m_baseCall == message_words.at(1))) {
       // dual Fox style message, possibly from MSHV
       if (m_config.prompt_to_log() || m_config.autoLog()) {
         logQSOTimer.start(0);
