@@ -3372,6 +3372,9 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
           ui->dxCallEntry->clear();
           ui->dxGridEntry->clear();
           ui->txrb6->setChecked(true);
+          if (ui->cbAutoCall->isChecked()) {
+            on_stopTxButton_clicked();
+          }
           return true;
         }
       }
@@ -6242,6 +6245,9 @@ void MainWindow::on_EraseButton_clicked ()
     ui->dxCallEntry->clear();
     ui->dxGridEntry->clear();
     ui->txrb6->setChecked(true);
+    if (ui->cbAutoCall->isChecked()) {
+      on_stopTxButton_clicked();
+    }
     m_nEraseClicks = 0;
   }
 
