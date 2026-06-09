@@ -3371,6 +3371,7 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
           ui->tx5->clearEditText();
           ui->dxCallEntry->clear();
           ui->dxGridEntry->clear();
+          ui->txrb6->setChecked(true);
           return true;
         }
       }
@@ -6240,6 +6241,7 @@ void MainWindow::on_EraseButton_clicked ()
     ui->tx5->clearEditText();
     ui->dxCallEntry->clear();
     ui->dxGridEntry->clear();
+    ui->txrb6->setChecked(true);
     m_nEraseClicks = 0;
   }
 
@@ -14335,6 +14337,15 @@ void MainWindow::on_actionCall_next_triggered() {
 
     useNextCall();
     on_txb1_clicked();
+
+    // Right-click pounce should override Hold Tx and Tx First Lock.
+    ui->cbHoldTxFreq->setChecked(false);
+    if (m_TxFirstLock) {
+        m_TxFirstLock = false;
+        ui->txFirstCheckBox->setChecked(false);
+        ui->txFirstCheckBox->setStyleSheet("");
+    }
+
     ui->cb_autoCallNext->setChecked(true);
 }
 
