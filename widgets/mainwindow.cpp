@@ -512,9 +512,9 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   m_block_udp_status_updates {false}
 {
   ui->setupUi(this);
-  m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
   ui->cb_autoModeSwitch->setContextMenuPolicy (Qt::CustomContextMenu);
   update_auto_mode_switch_widget ();
+  m_watchdogAnchorUtc = QDateTime::currentDateTimeUtc ();
   setUnifiedTitleAndToolBarOnMac (true);
   createStatusBar();
   add_child_to_event_filter (this);
@@ -1909,7 +1909,6 @@ void MainWindow::readSettings()
   m_infoMessageShown = m_settings->value("infoMessageShown12-2024", false).toBool();
   ui->cb_ignoreCQTarget->setCurrentIndex(m_settings->value("ignoreCQTargetIndex", 0).toInt());
   ui->tx1->setEnabled(m_settings->value("tx1State", true).toBool());
-  ui->tx1->setEnabled(!elide_tx1_not_allowed () && ui->tx1->isEnabled());
   m_unfilteredViewGeometry = m_settings->value("rawViewGeometry").toByteArray();
   m_pskReporterViewGeometry = m_settings->value("pskViewGeometry").toByteArray();
   auto showRawView =m_settings->value("rawViewDisplayed", false).toBool();
@@ -3360,6 +3359,7 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
       // reset the Tx watchdog
       // Z
       if (m_config.wdResetAnywhere())
+        reset_watchdog_on_click ();
       tx_watchdog (false);
       if (object == ui->EraseButton) {
         auto const *mouseEvent = static_cast<QMouseEvent const *> (event);
@@ -3372,13 +3372,11 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
           ui->dxCallEntry->clear();
           ui->dxGridEntry->clear();
           ui->txrb6->setChecked(true);
-          if (ui->cbAutoCall->isChecked()) {
+          if (ui->cbAutoCall->isChecked() && m_bDoubleClicked) {
             on_stopTxButton_clicked();
           }
-          return true;
         }
       }
-        reset_watchdog_on_click ();
       break;
 
     case QEvent::ChildAdded:
@@ -4607,9 +4605,8 @@ void MainWindow::decode()                                       //decode()
   dec_data.params.ltxing = false;
   dec_data.params.lhound = false;
   dec_data.params.lcommonft8b = true;         // common ft8b path
-  dec_data.params.lmycallstd = stdCall (m_config.my_callsign ());
-  auto const his_callsign = ui->dxCallEntry->text ().trimmed ();
-  dec_data.params.lhiscallstd = his_callsign.isEmpty () || stdCall (his_callsign);
+  dec_data.params.lmycallstd = true;          // assume standard mycall
+  dec_data.params.lhiscallstd = true;
   dec_data.params.lapmyc = false;
   dec_data.params.lmodechanged = false;
   dec_data.params.lbandchanged = false;
@@ -5704,25 +5701,19 @@ void MainWindow::readFromStdout()                             //readFromStdout
                   if (ui->actionHide_AP_info->isVisible() && ui->actionHide_AP_info->isChecked()) {
                     static QRegularExpression const kReAP {
                       R"(\s+(?:\?\s+)?(?:a[1-9]|q[1-9][0-9*]?)\b)"};
-                  QString stripped = line_read;
-                  stripped.replace(kReAP, "");
-                  DecodedText decodedtextNoAP {stripped};
-                  ui->decodedTextBrowser->displayDecodedText(decodedtextNoAP,m_baseCall,m_mode,dxcc,
-                                                             m_logBook,m_currentBand,m_config.ppfx(),
-                                                             ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
-                                                             haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
-                  if (m_pskReporterReceivers.contains(decodedtextNoAP.transmittingCall().toUpper())) {
-                      ui->decodedTextBrowser->highlight_callsign_line(decodedtextNoAP.transmittingCall(), QColor{}, QColor{}, false, true);
+                    QString stripped = line_read;
+                    stripped.replace(kReAP, "");
+                    DecodedText decodedtextNoAP {stripped};
+                    ui->decodedTextBrowser->displayDecodedText(decodedtextNoAP,m_baseCall,m_mode,dxcc,
+                                         m_logBook,m_currentBand,m_config.ppfx(),
+                                         ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
+                                         haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
+                  } else {
+                    ui->decodedTextBrowser->displayDecodedText(decodedtext1,m_baseCall,m_mode,dxcc,
+                                         m_logBook,m_currentBand,m_config.ppfx(),
+                                         ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
+                                         haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
                   }
-              } else {
-                  ui->decodedTextBrowser->displayDecodedText(decodedtext1,m_baseCall,m_mode,dxcc,
-                                                             m_logBook,m_currentBand,m_config.ppfx(),
-                                                             ui->cbCQonly->isVisible() && ui->cbCQonly->isChecked(),
-                                                             haveFSpread, fSpread, bDisplayPoints, m_points, ui->cbCQonlyIncl73->isChecked(), m_config.colourAll(), distance, state, isFiltered);
-                  if (m_pskReporterReceivers.contains(decodedtext1.transmittingCall().toUpper())) {
-                      ui->decodedTextBrowser->highlight_callsign_line(decodedtext1.transmittingCall(), QColor{}, QColor{}, false, true);
-                  }
-              }
 
                   if (ui->dxCallEntry->text() == deCall && m_config.highlightDX())
                   {
@@ -6027,15 +6018,16 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
   bool const have_selected_dx = !selected_dx_base.isEmpty ();
   auto msg_no_hash = message.clean_string();
   msg_no_hash = msg_no_hash.mid(22).remove("<").remove(">");
+
+  if (m_zdebug) log("msg_no_hash: " + msg_no_hash);
+  if (m_zdebug) log("isStandardMessage: " +  QString::number(message.isStandardMessage()));
+
   auto const& raw_words = msg_no_hash.split(" ",SkipEmptyParts);
   bool composite_rr73_detected = composite_rr73 (raw_words);
   bool composite_rr73_for_me = composite_rr73_detected
     && (token_matches_call (raw_words.value (0), m_config.my_callsign ())
         || token_matches_call (raw_words.value (0), m_baseCall));
   bool terminal_signoff = is_73 || composite_rr73_detected;
-
-  if (m_zdebug) log("msg_no_hash: " + msg_no_hash);
-  if (m_zdebug) log("isStandardMessage: " +  QString::number(message.isStandardMessage()));
 
   bool is_OK=false;
   if(m_mode=="MSK144" && msg_no_hash.indexOf(ui->dxCallEntry->text()+" R ")>0) is_OK=true;
@@ -6100,9 +6092,6 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     if (m_auto
         && auto_qrm_guard_state
         && (SpecOp::HOUND != m_specOp) && qrm_stop_window_match //
-        && (m_QSOProgress==REPLYING  or (!ui->tx1->isEnabled () and m_QSOProgress==REPORT))
-        && (SpecOp::HOUND != m_specOp) && qAbs (ui->TxFreqSpinBox->value () - df) <= int (stop_tolerance) //
-      && !composite_rr73_for_me
         && message_words.at (2) != "DE"
         && !message_words.at (2).contains (QRegularExpression {"(^(CQ|QRZ))|" + m_baseCall})
         && have_selected_dx
@@ -6124,7 +6113,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                          // being called and not already in a QSO
                          && (message_words.at(3).contains(Radio::base_callsign(ui->dxCallEntry->text()))
                              or bEU_VHF))
-                      || composite_rr73_for_me // <de-call> RR73; ...
+                        || composite_rr73_for_me // <de-call> RR73; ...
                         // type 2 compound replies
                         || (within_tolerance &&
                             (acceptable_73 ||
@@ -6149,6 +6138,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                && (ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked())
                && !(have_selected_dx && directed_with_selected_dx && !directed_to_me)
                && m_QSOProgress == CALLING
+               && !(message_words.filter (QRegularExpression {"^(73)$"}).size())
                && !terminal_signoff
                && (m_config.processTailenders() || m_lastCall == hiscall)
                && (!m_transmitting)
@@ -6245,7 +6235,7 @@ void MainWindow::on_EraseButton_clicked ()
     ui->dxCallEntry->clear();
     ui->dxGridEntry->clear();
     ui->txrb6->setChecked(true);
-    if (ui->cbAutoCall->isChecked()) {
+    if (ui->cbAutoCall->isChecked() && m_bDoubleClicked) {
       on_stopTxButton_clicked();
     }
     m_nEraseClicks = 0;
@@ -7278,6 +7268,7 @@ void MainWindow::on_txrb4_doubleClicked ()
   auto const& my_callsign = m_config.my_callsign ();
   auto is_compound = my_callsign != m_baseCall;
   m_send_RR73 = !((is_compound && !shortList (my_callsign)) || m_send_RR73);
+  if((m_mode=="FT4" or m_mode=="FT2")) m_send_RR73=true;
   genStdMsgs (m_rpt);
 }
 
@@ -7354,6 +7345,7 @@ void MainWindow::on_txb4_doubleClicked()
   auto const& my_callsign = m_config.my_callsign ();
   auto is_compound = my_callsign != m_baseCall;
   m_send_RR73 = !((is_compound && !shortList (my_callsign)) || m_send_RR73);
+  if((m_mode=="FT4" or m_mode=="FT2")) m_send_RR73=true;
   genStdMsgs (m_rpt);
 }
 
@@ -7523,6 +7515,11 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
   }
 
   QStringList w=message.clean_string ().mid(22).remove("<").remove(">").split(" ",SkipEmptyParts);
+  auto const& raw_words = message.clean_string().split(" ", SkipEmptyParts);
+  bool const composite_rr73_detected = composite_rr73(raw_words);
+  bool const composite_rr73_for_me = composite_rr73_detected
+    && (token_matches_call(raw_words.value(0), m_config.my_callsign())
+        || token_matches_call(raw_words.value(0), m_baseCall));
 
   // Z
   dxLookup(hiscall, hisgrid);
@@ -7536,12 +7533,7 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
     }
   }
 
-  bool composite_rr73_detected = composite_rr73 (w);
-  bool composite_rr73_for_me = composite_rr73_detected
-    && (token_matches_call (w.value (0), m_config.my_callsign ())
-        || token_matches_call (w.value (0), m_baseCall));
-  bool is_73 = message_words.filter (QRegularExpression {"^(73|RR73)$"}).size ()
-    || composite_rr73_detected;
+  bool is_73 = message_words.filter (QRegularExpression {"^(73|RR73)$"}).size ();
   if (!is_73 and !message.isStandardMessage() and !message.clean_string ().contains("<")) {
     qDebug () << "Not processing message - hiscall:" << hiscall << "hisgrid:" << hisgrid
               << message.clean_string () << message.isStandardMessage();
@@ -7654,37 +7646,10 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
     }
 
     bool bContestOK=(m_mode=="FT4" or m_mode=="FT8" or m_mode=="FT2" or m_mode=="Q65" or m_mode=="MSK144");
-    bool const both_nonstandard_77bit =
-      is77BitMode () && !stdCall (m_config.my_callsign ()) && !stdCall (hiscall);
-    bool addressed_to_me = (message_words.at(2).contains(m_baseCall)
-                             || (message_words.size() > 3 && message_words.at(3).contains(m_baseCall))
-                             || "DE" == message_words.at(2)
-                             || (message_words.size() > 3 && "DE" == message_words.at(3)));
-    bool addressed_to_partner = ((message_words.size() > 1 && message_words.at(1).contains(qso_partner_base_call))
-                                 || (message_words.size() > 2 && message_words.at(2).contains(qso_partner_base_call))
-                                 || (message_words.size() > 3 && message_words.at(3).contains(qso_partner_base_call)));
-
-    // In 77-bit type-4 exchanges with two nonstandard calls, report-bearing
-    // messages are not representable. If both sides keep exchanging plain
-    // directed calls, promote from Tx2 to Tx4 once we're already in report
-    // state so the QSO can progress instead of repeating Tx2 indefinitely.
-    if (both_nonstandard_77bit && nw == 2
-        && (message_words.at(2).contains(m_baseCall) || "DE" == message_words.at(2))) {
-      tx_watchdog (false);
-      if (m_QSOProgress >= REPORT) {
-        setTxMsg (4);
-        m_QSOProgress = ROGERS;
-      } else {
-        setTxMsg (2);
-        m_QSOProgress = REPORT;
-      }
-    }
-    else if(message_words.size () > 4   // enough fields for a normal message
-       && addressed_to_me
-       && (addressed_to_partner
-           || m_bDoubleClicked
-           || bEU_VHF_w2
-           || (m_QSOProgress==CALLING))) {
+    if(message_words.size () > 4   // enough fields for a normal message
+       && (message_words.at(2).contains(m_baseCall) || "DE" == message_words.at(2))
+       && (message_words.at(3).contains(qso_partner_base_call) or m_bDoubleClicked
+           or bEU_VHF_w2 or (m_QSOProgress==CALLING))) {
       // Reset Tx watchdog when an incoming message addresses us — someone
       // replied to our CQ or we're already in a QSO with the sender.
       // Without this, WD expiring during a long CQ campaign blocks the
@@ -7700,6 +7665,7 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
       } else {
           tx_watchdog (false);
       }
+
       if(message_words.at(4).contains(grid_regexp) and SpecOp::EU_VHF!=m_specOp) {
         if((SpecOp::NA_VHF==m_specOp or SpecOp::WW_DIGI==m_specOp or
             SpecOp::ARRL_DIGI==m_specOp or SpecOp::Q65_PILEUP==m_specOp)
@@ -7746,24 +7712,6 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
           setTxMsg(3);
           m_QSOProgress=ROGER_REPORT;
         }
-      } else if (message_words.size () > 5
-                 && "R" == message_words.at (4)
-                 && message_words.at (5).contains (grid_regexp)
-                 && SpecOp::EU_VHF != m_specOp) {
-        // "MYCALL DXCALL R GRID" — DX station confirmed our exchange and sent their grid.
-        // In VHF contest modes (NA_VHF/WW_DIGI/ARRL_DIGI/Q65_PILEUP) the protocol
-        // requires us to reply with RRR before logging, so just advance to ROGERS.
-        // In all other modes queue Tx4 (RRR) and keep the QSO open so the normal
-        // closing path (RRR/RR73/73) can finish the contact.
-        bool vhf_contest = (SpecOp::NA_VHF == m_specOp || SpecOp::WW_DIGI == m_specOp
-                            || SpecOp::ARRL_DIGI == m_specOp || SpecOp::Q65_PILEUP == m_specOp);
-        setTxMsg (4);
-        m_QSOProgress = ROGERS;
-        if (!vhf_contest) {
-          // Do not log immediately here; keep the QSO open so TX4 (RRR)
-          // can actually be sent and the normal closing path (RRR/RR73/73)
-          // can complete the QSO.
-        }
       } else {  // no grid on end of msg
         auto const& word_3 = message_words.at (4);
         auto word_3_as_number = word_3.toInt ();
@@ -7807,20 +7755,8 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
                 m_ntx=4;
                 ui->txrb4->setChecked(true);
               }
-            else if (received_rr73
-                     || (received_73 && m_QSOProgress >= ROGERS))
-              {
-                if (m_config.prompt_to_log() || m_config.autoLog()) {
-                  logQSOTimer.start(0);
-                }
-                else {
-                  cease_auto_Tx_after_QSO ();
-                }
-                m_ntx=6;
-                ui->txrb6->setChecked(true);
-              }
-            else if (m_QSOProgress < ROGERS
-                     && (m_QSOProgress > CALLING || "RRR" == word_3))
+            else if ((m_QSOProgress > CALLING && m_QSOProgress < ROGERS)
+                     || word_3.contains (QRegularExpression {"^RR(?:R|73)$"}))
               {
                 m_ntx=5;
                 ui->txrb5->setChecked(true);
@@ -7833,8 +7769,8 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
                 else {
                   cease_auto_Tx_after_QSO ();
                 }
-                m_ntx=5;
-                ui->txrb5->setChecked(true);
+                m_ntx=6;
+                ui->txrb6->setChecked(true);
               }
             else
               {
@@ -7898,9 +7834,10 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
             return;
           }
       }
-} else if (composite_rr73_for_me
-           || (5 == message_words.size()
-               && m_baseCall == message_words.at(1))) {
+    }
+    else if (composite_rr73_for_me
+             || (5 == message_words.size ()
+                 && m_baseCall == message_words.at (1))) {
       // dual Fox style message, possibly from MSHV
       if (m_config.prompt_to_log() || m_config.autoLog()) {
         logQSOTimer.start(0);
@@ -8221,11 +8158,6 @@ void MainWindow::genStdMsgs(QString rpt, bool unconditional)
       if(!bHisCall) {
         t=t0a;
         msgtype(t0a + my_grid, ui->tx1);
-        if (is77BitMode () && SpecOp::NONE==m_specOp
-            && ((Radio::is_77bit_nonstandard_callsign (my_callsign) && !is_compound)
-                || (is_compound && Radio::is_77bit_nonstandard_callsign (hisCall)))) {
-          msgtype(t0a, ui->tx1);
-        }
       }
       if(SpecOp::NA_VHF==m_specOp) sent=my_grid;
       if(SpecOp::WW_DIGI==m_specOp) sent=my_grid;
@@ -8249,6 +8181,14 @@ void MainWindow::genStdMsgs(QString rpt, bool unconditional)
         a = a.asprintf("%4.4d ",ui->sbSerialNumber->value());
         sent=rs + a + m_config.my_grid();
       }
+      // Local fork heuristic: /P is treated as a standard suffix, so do not
+      // apply the 77-bit nonstandard compound-call rewrite when both our and
+      // his full calls are standard base calls with a /P suffix.
+      // This is a local divergence from upstream; arbitrary suffixes like /QRP
+      // are not considered standard and remain in the general compound-call path.
+      // The 77-bit nonstandard compound-call rewrite is also not applied when both
+      // calls are nonstandard 77-bit calls, even if one or both contain /P
+
       if (is77BitMode () && SpecOp::NONE==m_specOp
           && Radio::is_77bit_nonstandard_callsign (my_callsign)
           && Radio::is_77bit_nonstandard_callsign (hisCall)
@@ -8331,44 +8271,12 @@ void MainWindow::genStdMsgs(QString rpt, bool unconditional)
       if(bHisCall and !bMyCall) t="<" + hisCall + "> " + my_callsign + " " + (m_send_RR73 ? "RR73" : "RRR");
     }
     if ((m_mode=="JT4" || m_mode=="Q65") && m_bShMsgs) t="@1500  (RRR)";
-    if (is77BitMode () && SpecOp::NONE==m_specOp
-        && Radio::is_77bit_nonstandard_callsign (my_callsign)
-        && !(!Radio::is_77bit_nonstandard_callsign (hisBase) && hisCall.contains("/P"))) {
-      if (!is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall)) {
-        t=hisBase + " <" + m_baseCall + "> " + (m_send_RR73 ? "RR73" : "RRR");
-      }
-      if (!is_compound && hisCall!=hisBase) {
-        t=hisCall + " <" + my_callsign + "> " + (m_send_RR73 ? "RR73" : "RRR");
-      }
-      if (is_compound && hisCall!=hisBase) {
-        t=hisCall + " <" + my_callsign + "> " + (m_send_RR73 ? "RR73" : "RRR");
-      }
-      if (is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall)) {
-        t=hisBase + " <" + my_callsign + "> " + (m_send_RR73 ? "RR73" : "RRR");
-      }
-    }
     msgtype(t, ui->tx4);
 
     t=t0 + "73";
     if((m_mode=="MSK144" and !m_bShMsgs) or m_mode=="FT8" or m_mode=="FT4" or m_mode=="FT2" || m_mode == "FST4" || m_mode == "Q65") {
       if(!bHisCall and bMyCall) t=hisCall + " <" + my_callsign + "> 73";
       if(bHisCall and !bMyCall) t="<" + hisCall + "> " + my_callsign + " 73";
-    }
-    if (is77BitMode () && SpecOp::NONE==m_specOp
-        && Radio::is_77bit_nonstandard_callsign (my_callsign)
-        && !(!Radio::is_77bit_nonstandard_callsign (hisBase) && hisCall.contains("/P"))) {
-      if (!is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall)) {
-        t=hisBase + " <" + m_baseCall + "> 73";
-      }
-      if (!is_compound && hisCall!=hisBase) {
-        t=hisCall + " <" + my_callsign + "> 73";
-      }
-      if (is_compound && hisCall!=hisBase) {
-        t=hisCall + " <" + my_callsign + "> 73";
-      }
-      if (is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall)) {
-        t=hisBase + " <" + my_callsign + "> 73";
-      }
     }
     if (m_mode=="JT4" || m_mode=="Q65") {
       if (m_bShMsgs) t="@1750  (73)";

@@ -1031,8 +1031,8 @@ private:
   void writeSettings();
   void createStatusBar();
   void update_mode_switch_status_label();
-  void update_auto_call_pileup_mode_ui();
   void update_auto_mode_switch_widget();
+  void update_auto_call_pileup_mode_ui();
   void updateStatusBar();
   void genStdMsgs(QString rpt, bool unconditional = false);
   void genCQMsg();
