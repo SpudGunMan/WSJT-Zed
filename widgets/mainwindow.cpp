@@ -8210,6 +8210,10 @@ void MainWindow::genStdMsgs(QString rpt, bool unconditional)
       if(!bHisCall) {
         t=t0a;
         msgtype(t0a + my_grid, ui->tx1);
+        if (is77BitMode () && SpecOp::NONE==m_specOp
+            && ((Radio::is_77bit_nonstandard_callsign (my_callsign) && !is_compound)
+                || (is_compound && Radio::is_77bit_nonstandard_callsign (hisCall))))
+          msgtype(t0a, ui->tx1);
       }
       if(SpecOp::NA_VHF==m_specOp) sent=my_grid;
       if(SpecOp::WW_DIGI==m_specOp) sent=my_grid;
@@ -8313,12 +8317,36 @@ void MainWindow::genStdMsgs(QString rpt, bool unconditional)
       if(bHisCall and !bMyCall) t="<" + hisCall + "> " + my_callsign + " " + (m_send_RR73 ? "RR73" : "RRR");
     }
     if ((m_mode=="JT4" || m_mode=="Q65") && m_bShMsgs) t="@1500  (RRR)";
+    if (is77BitMode () && SpecOp::NONE==m_specOp
+        && Radio::is_77bit_nonstandard_callsign (my_callsign)
+        && !(!Radio::is_77bit_nonstandard_callsign (hisBase) && hisCall.contains("/P"))) {
+      if (!is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall))
+        t=hisBase + " <" + m_baseCall + "> " + (m_send_RR73 ? "RR73" : "RRR");
+      if (!is_compound && hisCall!=hisBase)
+        t=hisCall + " <" + my_callsign + "> " + (m_send_RR73 ? "RR73" : "RRR");
+      if (is_compound && hisCall!=hisBase)
+        t=hisCall + " <" + my_callsign + "> " + (m_send_RR73 ? "RR73" : "RRR");
+      if (is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall))
+        t=hisBase + " <" + my_callsign + "> " + (m_send_RR73 ? "RR73" : "RRR");
+    }
     msgtype(t, ui->tx4);
 
     t=t0 + "73";
     if((m_mode=="MSK144" and !m_bShMsgs) or m_mode=="FT8" or m_mode=="FT4" or m_mode=="FT2" || m_mode == "FST4" || m_mode == "Q65") {
       if(!bHisCall and bMyCall) t=hisCall + " <" + my_callsign + "> 73";
       if(bHisCall and !bMyCall) t="<" + hisCall + "> " + my_callsign + " 73";
+    }
+    if (is77BitMode () && SpecOp::NONE==m_specOp
+        && Radio::is_77bit_nonstandard_callsign (my_callsign)
+        && !(!Radio::is_77bit_nonstandard_callsign (hisBase) && hisCall.contains("/P"))) {
+      if (!is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall))
+        t=hisBase + " <" + m_baseCall + "> 73";
+      if (!is_compound && hisCall!=hisBase)
+        t=hisCall + " <" + my_callsign + "> 73";
+      if (is_compound && hisCall!=hisBase)
+        t=hisCall + " <" + my_callsign + "> 73";
+      if (is_compound && hisCall==hisBase && Radio::is_77bit_nonstandard_callsign (hisCall))
+        t=hisBase + " <" + my_callsign + "> 73";
     }
     if (m_mode=="JT4" || m_mode=="Q65") {
       if (m_bShMsgs) t="@1750  (73)";
