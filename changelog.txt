@@ -1,4 +1,32 @@
 == Changelog
+V2.0.13
+[fixes]
+- Auto-sequence stop condition now requires the selected DX call to actually be the transmitting station in the decode, and the reply target to not be your own call. Previously the stop could trigger when the selected DX was being called by someone else (PR #25, SpudGunMan).
+- Watchdog idle timer now correctly pauses while Auto-Call is active (in addition to Auto-CQ). Previously Auto-Call sessions could trip the watchdog and halt TX even though the operator was actively cycling (PR #24, SpudGunMan).
+- Tailender detection now treats RR73 and RRR as end-of-QSO acknowledgements alongside 73, so Auto-CQ/Auto-Call no longer reply to a station that has already signed off (PR #24, SpudGunMan).
+- Band-hopper auto-mode logic hardened against edge cases when band switches coincide with mode changes (related to issue #22) (PR #26, SpudGunMan).
+
+[features]
+- New status labels for Band Hop ("BH") and Mode Switch ("MS") show the countdown to the next scheduled change and the next band/mode, so the operator can see at a glance what the auto-cycle is about to do (PR #27, SpudGunMan).
+
+[tooling]
+- macOS / Apple ARM cross-compile support — the project now builds on Apple Silicon, Ubuntu (ARM/Intel), and Pi 5. New `doc/build-osx.sh` script bootstraps the macOS SDK for cross-compilation, tested against v26-OSX (PR #23, SpudGunMan).
+- Version numbering consolidated to a single source of truth: `set (VERSION_Z "X.Y.Z")` in CMakeLists.txt now drives both the package filename and the in-app title bar (via `wsjtx_config.h.in`). Bumping the WSJT-Z mod version is now a one-line edit (PR #21, SpudGunMan).
+
+V2.0.12
+[fixes]
+- Echo mode no longer segfaults on first decode. The C++ side was passing a struct whose layout did not match the Fortran params_block expected by the Echo decoder, corrupting memory as soon as the Echo path ran. Layouts are now in sync (PR #16, SpudGunMan).
+- PSKReporter widget no longer triggers Qt thread-safety warnings (and the occasional crash that came with them). The reception-report table was being populated from a QtConcurrent worker thread, which is illegal for QWidget objects; population now runs on the GUI thread (PR #17, SpudGunMan).
+- Auto-CQ no longer fires a stray CQ when not in Auto-CQ mode. A code path in the Auto-Call flow could trigger a CQ transmission unintentionally (PR #19, SpudGunMan).
+- Auto-CQ free-slot checker no longer reshuffles your TX frequency every cycle for no reason. If your current TX slot is still free it is kept; otherwise the search starts from the current frequency and walks outward in alternating ±10 Hz steps with band-edge wrap-around, instead of always re-anchoring at 1500 Hz (PR #18, SpudGunMan).
+
+[performance]
+- Loaded WAV files are now decoded across the full 200–4000 Hz range for FT8/FT4/FT2, matching jt9 defaults. The WideGraph window is bypassed for disk playback, so decodes outside the live receive window are no longer dropped when re-analyzing recordings (PR #15, SpudGunMan).
+- The FT8 multi-thread duplicate filter is now gated by the "Hide FT8 dupe messages" menu setting, and is always on for disk playback. Operators who want raw decoder output can untick the menu item to disable dedup on live air (PR #15, SpudGunMan).
+
+[tooling]
+- Configuration UI: cleaned up duplicate widget object names. No user-visible change; reduces ambiguity for future findChild lookups and keeps Qt Designer happier (PR #17, SpudGunMan).
+
 V2.0.11
 [fixes]
 - TCI audio now actually starts. The "Use TCI Audio" checkbox was wired into Settings but the resulting flag bit was never OR'd into rig_params.poll_interval, so TCITransceiver booted with tci_audio_=false and never sent audio_start to the rig. Result: no RX audio reached WSJT-Z, and TX audio only worked if the operator had manually selected TCI as the audio source on the rig side. Configuration::gather_rig_data now sets the tci__audio bit when the checkbox is ticked, matching the upstream wiring.

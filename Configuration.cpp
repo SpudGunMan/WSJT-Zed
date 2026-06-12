@@ -747,7 +747,9 @@ private:
   bool id_after_73_;
   bool tx_QSY_allowed_;
   bool spot_to_psk_reporter_;
+  bool psk_reporter_band_activity_;
   bool psk_reporter_tcpip_;
+  bool decoded_text_psk_highlight_;
   bool monitor_off_at_startup_;
   bool monitor_last_used_;
   bool log_as_RTTY_;
@@ -826,9 +828,9 @@ private:
   bool autoFreqWide_;
   bool wdResetAnywhere_;
   int padding_;
-  int wd_FT8_;
-  int wd_FT4_;
-  int wd_FT2_;
+  double wd_FT8_;
+  double wd_FT4_;
+  double wd_FT2_;
   bool wd_Timer_;
   bool processTailenders_;
   QString permIgnoreList_;
@@ -839,6 +841,7 @@ private:
   bool noFoxQSY_;
   bool showState_;
   bool rawViewDXCC_;
+  bool copyOnClickBA_;
   bool clearRx_;
   bool freezeBA_;
   bool removeExtra_;
@@ -898,6 +901,14 @@ bool Configuration::spot_to_psk_reporter () const
   // rig must be open and working to spot externally
   return is_transceiver_online () && m_->spot_to_psk_reporter_;
 }
+bool Configuration::psk_reporter_band_activity () const
+{
+  return m_->psk_reporter_band_activity_;
+}
+bool Configuration::psk_reporter_enabled () const
+{
+  return m_->spot_to_psk_reporter_;
+}
 bool Configuration::psk_reporter_tcpip () const {return m_->psk_reporter_tcpip_;}
 bool Configuration::monitor_off_at_startup () const {return m_->monitor_off_at_startup_;}
 bool Configuration::monitor_last_used () const {return m_->rig_is_dummy_ || m_->monitor_last_used_;}
@@ -907,6 +918,7 @@ bool Configuration::prompt_to_log () const {return m_->prompt_to_log_;}
 bool Configuration::autoLog() const {return m_->autoLog_;}
 bool Configuration::decodes_from_top () const {return m_->decodes_from_top_;}
 bool Configuration::insert_blank () const {return m_->insert_blank_;}
+bool Configuration::decoded_text_psk_highlight() const {return m_->decoded_text_psk_highlight_;}
 bool Configuration::DXCC () const {return m_->DXCC_;}
 bool Configuration::ppfx() const {return m_->ppfx_;}
 bool Configuration::clear_DX () const {return m_->clear_DX_;}
@@ -980,9 +992,9 @@ bool Configuration::autoFreqNarrow() const {return m_->autoFreqNarrow_;}
 bool Configuration::autoFreqWide() const {return m_->autoFreqWide_;}
 bool Configuration::wdResetAnywhere() const {return m_->wdResetAnywhere_;}
 int Configuration::padding() const {return m_->padding_;}
-int Configuration::wd_FT8() const {return m_->wd_FT8_;}
-int Configuration::wd_FT4() const {return m_->wd_FT4_;}
-int Configuration::wd_FT2() const {return m_->wd_FT2_;}
+double Configuration::wd_FT8() const {return m_->wd_FT8_;}
+double Configuration::wd_FT4() const {return m_->wd_FT4_;}
+double Configuration::wd_FT2() const {return m_->wd_FT2_;}
 bool Configuration::wd_Timer() const {return m_->wd_Timer_;}
 bool Configuration::processTailenders() const {return m_->processTailenders_;}
 QString Configuration::permIgnoreList() const {return m_->permIgnoreList_;}
@@ -993,6 +1005,7 @@ bool Configuration::autoTXFreq() const {return m_->autoTXFreq_;}
 bool Configuration::noFoxQSY() const {return m_->noFoxQSY_;}
 bool Configuration::showState() const {return m_->showState_;}
 bool Configuration::rawViewDXCC() const {return m_->rawViewDXCC_;}
+bool Configuration::copyOnClickBA() const {return m_->copyOnClickBA_;}
 bool Configuration::clearRX() const {return m_->clearRx_;}
 bool Configuration::freezeBA() const {return m_->freezeBA_;}
 bool Configuration::removeExtra() const {return m_->removeExtra_;}
@@ -1689,6 +1702,10 @@ void Configuration::impl::initialize_models ()
   ui_->CW_id_after_73_check_box->setChecked (id_after_73_);
   ui_->tx_QSY_check_box->setChecked (tx_QSY_allowed_);
   ui_->psk_reporter_check_box->setChecked (spot_to_psk_reporter_);
+  ui_->psk_reporter_band_activity_check_box->setChecked (psk_reporter_band_activity_);
+  ui_->psk_reporter_band_activity_check_box->setEnabled (spot_to_psk_reporter_);
+  connect (ui_->psk_reporter_check_box, &QCheckBox::toggled,
+           ui_->psk_reporter_band_activity_check_box, &QWidget::setEnabled);
   ui_->psk_reporter_tcpip_check_box->setChecked (psk_reporter_tcpip_);
   ui_->monitor_off_check_box->setChecked (monitor_off_at_startup_);
   ui_->monitor_last_used_check_box->setChecked (monitor_last_used_);
@@ -1828,9 +1845,11 @@ void Configuration::impl::initialize_models ()
   ui_->cb_showBearing->setChecked(showBearing_);
   ui_->cb_autoTune->setChecked(autoTune_);
   ui_->cb_autoTXFreq->setChecked(autoTXFreq_);
+  ui_->decoded_text_highlight_style_combo_box->setCurrentIndex(decoded_text_psk_highlight_ ? 1 : 0);
   ui_->cb_noFoxQSY->setChecked(noFoxQSY_);
   ui_->cb_showState->setChecked(showState_);
   ui_->cb_rawViewDXCC->setChecked(rawViewDXCC_);
+  ui_->cb_copyOnClickBA->setChecked(copyOnClickBA_);
   ui_->cb_clearRx->setChecked(clearRx_);
   ui_->cb_freezeBA->setChecked(freezeBA_);
   ui_->cb_removeExtra->setChecked(removeExtra_);
@@ -1917,13 +1936,14 @@ void Configuration::impl::read_settings ()
   azel_directory_.setPath (settings_->value ("AzElDir", default_azel_directory_.absolutePath ()).toString ());
 
   tci_audio_ = settings_->value ("TCIAudio", tci_audio_).toBool ();
-  volume_ = settings_->value ("volume", 0).toInt ();
+  volume_ = settings_->value ("TCIVolume", settings_->value ("volume", 0)).toInt ();
 
   type_2_msg_gen_ = settings_->value ("Type2MsgGen", QVariant::fromValue (Configuration::type_2_msg_3_full)).value<Configuration::Type2MsgGen> ();
 
   monitor_off_at_startup_ = settings_->value ("MonitorOFF", false).toBool ();
   monitor_last_used_ = settings_->value ("MonitorLastUsed", false).toBool ();
   spot_to_psk_reporter_ = settings_->value ("PSKReporter", false).toBool ();
+  psk_reporter_band_activity_ = settings_->value ("PSKReporterBandActivity", false).toBool ();
   psk_reporter_tcpip_ = settings_->value ("PSKReporterTCPIP", false).toBool ();
   id_after_73_ = settings_->value ("After73", false).toBool ();
   tx_QSY_allowed_ = settings_->value ("TxQSYAllowed", false).toBool ();
@@ -2102,9 +2122,9 @@ void Configuration::impl::read_settings ()
   dbgFile_ = settings_->value("dbgFile").toBool();
   wdResetAnywhere_ = settings_->value("wdResetAnywhere", true).toBool();
   padding_ = settings_->value("padding",42).toInt ();
-  wd_FT8_ = settings_->value("wd_FT8",2).toInt ();
-  wd_FT4_ = settings_->value("wd_FT4",1).toInt ();
-  wd_FT2_ = settings_->value("wd_FT2",1).toInt ();
+  wd_FT8_ = settings_->value("wd_FT8",2.0).toDouble ();
+  wd_FT4_ = settings_->value("wd_FT4",1.0).toDouble ();
+  wd_FT2_ = settings_->value("wd_FT2",1.0).toDouble ();
   wd_Timer_ = settings_->value("wd_Timer", false).toBool();
   processTailenders_ = settings_->value("processTailenders", false).toBool();
   permIgnoreList_ = settings_->value("permIgnoreList").toString();
@@ -2115,10 +2135,12 @@ void Configuration::impl::read_settings ()
   noFoxQSY_ = settings_->value("noFoxQSY", false).toBool();
   showState_ = settings_->value("showState", false).toBool();
   rawViewDXCC_ = settings_->value("rawViewDXCC", false).toBool();
+  copyOnClickBA_ = settings_->value("copyOnClickBA", true).toBool();
   clearRx_ = settings_->value("clearRx", false).toBool();
   freezeBA_ = settings_->value("freezeBA", false).toBool();
   removeExtra_ = settings_->value("removeExtra", false).toBool();
-  ignoreListReset_ = settings_->value("ignoreListReset",0).toInt ();
+  decoded_text_psk_highlight_ = settings_->value("DecodedTextHighlightUnderline", true).toBool();
+  ignoreListReset_ = settings_->value("ignoreListReset",0).toInt (); 
   separatorColor_ = settings_->value("separatorColor", "#777777").toString();
   alertCmdLine_ = settings_->value("alertCmdLine").toString();
 }
@@ -2169,6 +2191,7 @@ void Configuration::impl::write_settings ()
   settings_->setValue ("Aggressive", aggressive_);
   settings_->setValue ("RxBandwidth", RxBandwidth_);
   settings_->setValue ("TCIAudio", tci_audio_);
+  settings_->setValue ("TCIVolume", volume_);
   settings_->setValue ("CATTCIPort", rig_params_.tci_port);
   settings_->setValue ("PTTMethod", QVariant::fromValue (rig_params_.ptt_type));
   settings_->setValue ("PTTport", rig_params_.ptt_port);
@@ -2198,7 +2221,9 @@ void Configuration::impl::write_settings ()
   settings_->setValue ("MonitorOFF", monitor_off_at_startup_);
   settings_->setValue ("MonitorLastUsed", monitor_last_used_);
   settings_->setValue ("PSKReporter", spot_to_psk_reporter_);
+  settings_->setValue ("PSKReporterBandActivity", psk_reporter_band_activity_);
   settings_->setValue ("PSKReporterTCPIP", psk_reporter_tcpip_);
+  settings_->setValue ("DecodedTextHighlightUnderline", decoded_text_psk_highlight_);
   settings_->setValue ("After73", id_after_73_);
   settings_->setValue ("TxQSYAllowed", tx_QSY_allowed_);
   settings_->setValue ("Macros", macros_.stringList ());
@@ -2310,6 +2335,7 @@ void Configuration::impl::write_settings ()
   settings_->setValue("noFoxQSY", noFoxQSY_);
   settings_->setValue("showState", showState_);
   settings_->setValue("rawViewDXCC", rawViewDXCC_);
+  settings_->setValue("copyOnClickBA", copyOnClickBA_);
   settings_->setValue("clearRx", clearRx_);
   settings_->setValue("freezeBA", freezeBA_);
   settings_->setValue("removeExtra", removeExtra_);
@@ -2719,6 +2745,7 @@ void Configuration::impl::accept ()
   RTTY_exchange_= ui_->RTTY_Exchange->text ().toUpper ();
   Contest_Name_= ui_->Contest_Name->text ().toUpper ();
   spot_to_psk_reporter_ = ui_->psk_reporter_check_box->isChecked ();
+  psk_reporter_band_activity_ = ui_->psk_reporter_band_activity_check_box->isChecked ();
   psk_reporter_tcpip_ = ui_->psk_reporter_tcpip_check_box->isChecked ();
   id_interval_ = ui_->CW_id_interval_spin_box->value ();
   ntrials_ = ui_->sbNtrials->value ();
@@ -2886,9 +2913,11 @@ void Configuration::impl::accept ()
   noFoxQSY_ = ui_->cb_noFoxQSY->isChecked();
   showState_ = ui_->cb_showState->isChecked();
   rawViewDXCC_ = ui_->cb_rawViewDXCC->isChecked();
+  copyOnClickBA_ = ui_->cb_copyOnClickBA->isChecked();
   clearRx_ = ui_->cb_clearRx->isChecked();
   freezeBA_ = ui_->cb_freezeBA->isChecked();
   removeExtra_ = ui_->cb_removeExtra->isChecked();
+  decoded_text_psk_highlight_ = ui_->decoded_text_highlight_style_combo_box->currentIndex() == 1;
   ignoreListReset_ = ui_->sb_ignoreListReset->value();
   separatorColor_ = ui_->le_separatorColor->text();
   alertCmdLine_ = ui_->le_alertCmdLine->text();

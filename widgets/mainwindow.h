@@ -76,6 +76,7 @@ class QSharedMemory;
 class QSplashScreen;
 class QSettings;
 class QLineEdit;
+class QPoint;
 class QFont;
 class QHostInfo;
 class EchoGraph;
@@ -87,6 +88,9 @@ class MessageAveraging;
 class ActiveStations;
 class FoxLogWindow;
 class CabrilloLogWindow;
+class QSYMessageCreator;
+class QSYMessage;
+class QSYMonitor;
 class ColorHighlighting;
 class MessageClient;
 class QTime;
@@ -283,6 +287,8 @@ private slots:
   void handle_transceiver_update (Transceiver::TransceiverState const&);
   void handle_transceiver_failure (QString const& reason);
   void on_actionAstronomical_data_toggled (bool);
+  void on_actionQSYMessage_Creator_triggered();
+  void on_actionQSY_Monitor_triggered();
   void on_actionShort_list_of_add_on_prefixes_and_suffixes_triggered();
   void band_changed (Frequency);
   void monitor (bool);
@@ -308,6 +314,8 @@ private slots:
   void on_cbMenus_toggled(bool b);
   void on_cbCQonly_toggled(bool b);
   void on_cbAutoSeq_toggled(bool b);
+  void on_cbFirst_toggled(bool checked);
+  void on_respondComboBox_currentIndexChanged(int index);
   void networkError (QString const&);
   void on_ClrAvgButton_clicked();
   void on_actionWSPR_triggered();
@@ -364,6 +372,7 @@ private slots:
   void queueActiveWindowHound2(QString text);
 	// Z
     void pskTableClicked(QString,  QString);
+    void pskReporterReportsUpdated(QStringList const& receiver_callsigns);
     void logSlots();
     void execCmd(QString cmd);
     bool setFreeFreq();
@@ -427,6 +436,7 @@ private slots:
      void on_txrb6_doubleClicked ();
      void dxLookup(QString dxCall, QString dxGrid);
      void leftClickHandler(Qt::KeyboardModifiers modifiers);
+    void bandActivityClickToggle(Qt::KeyboardModifiers modifiers);
      void on_actionCall_info_triggered();
      void on_actionDark_mode_triggered();
      void qrzInit();
@@ -436,14 +446,17 @@ private slots:
      void on_ci_pb_lookup_clicked();
      void on_cb_specialMode_currentIndexChanged( int index);
      void on_cb_autoModeSwitch_toggled(bool b);
+    void on_cb_autoModeSwitch_customContextMenuRequested(QPoint const&);
      void on_actionAbout_WSJT_Z_triggered();
      void on_pb_WDReset_clicked();
      void resetAutoSwitch();
-     int watchdog();
+    double watchdog();
      void on_actionUnfiltered_View_triggered();
      void on_actionPSKReporter_triggered();
      void updateQsoCounter(bool increment);
      void on_txFirstCheckBox_toggled();
+    void update_tx5(const QString &qsy_text);
+    void reply_tx5(const QString &qsy_reply);
 
 private:
   Q_SIGNAL void initializeAudioOutputStream (QAudioDeviceInfo,
@@ -482,6 +495,7 @@ private:
   bool elide_tx1_not_allowed () const;
   void readWidebandDecodes();
   void configActiveStations();
+  void showQSYMessage(QString message);
   void sfox_tx();
   // Z
   void ci_gridLookup();
@@ -489,6 +503,7 @@ private:
   void switchBand(int row);
   void ZMessage();
   void ZProcess();
+  void clearPounceState();
 
   // Filter cache: parsed once when the QPlainTextEdit changes, reused per-decode.
   // Invalidated by textChanged signals connected in the ctor.
@@ -547,6 +562,9 @@ private:
   QScopedPointer<FastGraph> m_fastGraph;
   QScopedPointer<LogQSO> m_logDlg;
   QScopedPointer<Astro> m_astroWidget;
+  QScopedPointer<QSYMessageCreator> m_QSYMessageCreatorWidget;
+  QScopedPointer<QSYMessage> m_QSYMessageWidget;
+  QScopedPointer<QSYMonitor> m_qsymonitorWidget;
   QScopedPointer<HelpTextWindow> m_shortcuts;
   QScopedPointer<HelpTextWindow> m_prefixes;
   QScopedPointer<HelpTextWindow> m_mouseCmnds;
@@ -571,6 +589,7 @@ private:
   QThread m_audioThread;
 
   qint64  m_msErase;
+  int     m_nEraseClicks;
   qint64  m_secBandChanged;
   qint64  m_freqMoon;
   qint64  m_fullFoxCallTime;
@@ -614,7 +633,7 @@ private:
   qint32  m_inGain;
   qint32  m_ncw;
   qint32  m_secID;
-  qint32  m_idleMinutes;
+  double  m_idleMinutes;
   qint32  m_nSubMode;
   qint32  m_nSubMode_Q65;
   qint32  m_nSubMode_JT65;
@@ -738,11 +757,14 @@ private:
   QString m_prioGrid;
   bool    m_infoMessageShown = false;
   bool    m_autoModeSwitch = false;
-  bool    m_timeToHop = false;
+  bool    m_smartModeSwitch = false;
+  bool    m_autoCQAlternateEvenOddNext = false;
   QScopedPointer<UnfilteredView> m_unfilteredView;
   QScopedPointer<PSKReporterWidget> m_pskReporterView;
+  QSet<QString> m_pskReporterReceivers;
   QThread * m_pskReporterThread;
   QDateTime m_ignoreListReset;
+  QDateTime m_watchdogAnchorUtc;
   qint64 m_msTxFirst;
   bool m_TxFirstLock = false;
   bool m_AutoTxFreq = false;
@@ -796,6 +818,7 @@ private:
   QLabel auto_tx_label;
   QLabel band_hopping_label;
   QLabel ndecodes_label;
+  QLabel mode_switch_status_label;
   QProgressBar progressBar;
   QLabel watchdog_label;
 
@@ -959,6 +982,7 @@ private:
   bool m_tx_when_ready;
   bool m_transmitting;
   bool m_tune;
+  bool m_autoCQWatchdogPending;
   bool m_tx_watchdog;           // true when watchdog triggered
   bool m_block_pwr_tooltip;
   bool m_PwrBandSetOK;
@@ -976,6 +1000,7 @@ private:
   QByteArray m_geometryNoControls;
   QVector<double> m_phaseEqCoefficients;
   bool m_block_udp_status_updates;
+  bool m_bandActivityRawView = false;
 
   //---------------------------------------------------- private functions
   // Z 
@@ -985,6 +1010,8 @@ private:
   void clearCallInfo();
   QString  stateLookup(QString callsign);
   QString leftJustifyAppendage (QString message, QString appendage);
+  void updateBandActivityTitleLabel();
+  QString formatRawViewLine(DecodedText const& decodedtext0, QString const& deCall);
   void clearRXWindows();
 
   void readSettings();
@@ -992,6 +1019,8 @@ private:
   void setDecodedTextFont (QFont const&);
   void writeSettings();
   void createStatusBar();
+  void update_mode_switch_status_label();
+  void update_auto_mode_switch_widget();
   void updateStatusBar();
   void genStdMsgs(QString rpt, bool unconditional = false);
   void genCQMsg();
@@ -1050,6 +1079,7 @@ private:
   void subProcessError (QProcess *, QProcess::ProcessError);
   void statusUpdate () const;
   void update_watchdog_label ();
+  void reset_watchdog_on_click ();
   void invalidate_frequencies_filter ();
   void on_the_minute ();
   void add_child_to_event_filter (QObject *);

@@ -107,7 +107,7 @@
          </size>
         </property>
         <property name="toolTip">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Erase right window. Double-click to erase both windows.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Erase right window. Double-click to erase both windows. Triple-click also clears Tx1-Tx5, DX call, and DX grid. Right-click clears only Tx1-Tx5 and DX entries.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
         <property name="text">
          <string>&amp;Erase</string>
@@ -3652,12 +3652,18 @@ list. The list can be maintained in Settings (F2).</string>
                             <property name="enabled">
                              <bool>true</bool>
                             </property>
+                            <property name="maximum">
+                             <number>999</number>
+                            </property>
                            </widget>
                           </item>
                           <item row="0" column="1">
                            <widget class="QSpinBox" name="sb_autoCQCount">
                             <property name="enabled">
                              <bool>true</bool>
+                            </property>
+                            <property name="maximum">
+                             <number>999</number>
                             </property>
                            </widget>
                           </item>
@@ -3706,6 +3712,16 @@ list. The list can be maintained in Settings (F2).</string>
                            </property>
                            <property name="text">
                             <string>Treat 73's as CQ</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QCheckBox" name="cbAutoCQAlternateEvenOdd">
+                           <property name="toolTip">
+                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When Mode Switching is enabled, alternate TX even/odd at the start of each AutoCQ cycle.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                           </property>
+                           <property name="text">
+                            <string>AutoCQ alternate even/odd</string>
                            </property>
                           </widget>
                          </item>
@@ -3798,7 +3814,7 @@ list. The list can be maintained in Settings (F2).</string>
                              </sizepolicy>
                             </property>
                             <property name="toolTip">
-                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This feature allows you to set up automatic band changes.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Syntax:&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&amp;lt;hour&amp;gt;:&amp;lt;band1&amp;gt;,&amp;lt;band2&amp;gt;,&amp;lt;bandX&amp;gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Example:&lt;/span&gt;&lt;/p&gt;&lt;p&gt;14:20m,40m&lt;/p&gt;&lt;p&gt;22:80m:40m&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;In the above example, Z will switch between 20m and 40m between 14 and 22, then betwee 22 and 14 it will switch between 80m and 40m.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This feature allows you to set up automatic band changes. Cycle duration shares, mode-switching value.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Syntax:&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&amp;lt;hour zulu (UTC)&amp;gt;:&amp;lt;band1&amp;gt;,&amp;lt;band2&amp;gt;,&amp;lt;bandX&amp;gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Example:&lt;/span&gt;&lt;/p&gt;&lt;p&gt;14:20m,40m&lt;/p&gt;&lt;p&gt;22:80m:40m&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;In the above example, Z will switch between 20m and 40m between 14 and 22, then betwee 22 and 14 it will switch between 80m and 40m.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                             </property>
                            </widget>
                           </item>
@@ -4736,6 +4752,9 @@ list. The list can be maintained in Settings (F2).</string>
     <addaction name="actionWide_Waterfall"/>
     <addaction name="actionAstronomical_data"/>
     <addaction name="actionMessage_averaging"/>
+    <addaction name="actionQSYMessage_Creator"/>
+    <addaction name="actionQSY_Monitor"/>
+    <addaction name="actionEnable_QSY_Popups"/>
     <addaction name="actionEcho_Graph"/>
     <addaction name="actionFast_Graph"/>
     <addaction name="contest_log_action"/>
@@ -5388,6 +5407,24 @@ list. The list can be maintained in Settings (F2).</string>
   <action name="contest_log_action">
    <property name="text">
     <string>Contest log</string>
+   </property>
+  </action>
+  <action name="actionQSYMessage_Creator">
+   <property name="text">
+    <string>QSY Message Creator</string>
+   </property>
+  </action>
+  <action name="actionQSY_Monitor">
+   <property name="text">
+    <string>QSY Monitor</string>
+   </property>
+  </action>
+  <action name="actionEnable_QSY_Popups">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Enable QSY Popups</string>
    </property>
   </action>
   <action name="actionErase_WSPR_hashtable">
