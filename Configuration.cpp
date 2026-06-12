@@ -747,7 +747,9 @@ private:
   bool id_after_73_;
   bool tx_QSY_allowed_;
   bool spot_to_psk_reporter_;
+  bool psk_reporter_band_activity_;
   bool psk_reporter_tcpip_;
+  bool decoded_text_psk_highlight_;
   bool monitor_off_at_startup_;
   bool monitor_last_used_;
   bool log_as_RTTY_;
@@ -815,7 +817,6 @@ private:
   bool disableWriteALL_;
   bool disableWriteFoxQSO_;
   bool colourAll_;
-  bool pileupMode_;
   bool autoCQfiltering_;
   bool rxTotxFreq_;
   bool udpFiltering_;
@@ -900,6 +901,14 @@ bool Configuration::spot_to_psk_reporter () const
   // rig must be open and working to spot externally
   return is_transceiver_online () && m_->spot_to_psk_reporter_;
 }
+bool Configuration::psk_reporter_band_activity () const
+{
+  return m_->psk_reporter_band_activity_;
+}
+bool Configuration::psk_reporter_enabled () const
+{
+  return m_->spot_to_psk_reporter_;
+}
 bool Configuration::psk_reporter_tcpip () const {return m_->psk_reporter_tcpip_;}
 bool Configuration::monitor_off_at_startup () const {return m_->monitor_off_at_startup_;}
 bool Configuration::monitor_last_used () const {return m_->rig_is_dummy_ || m_->monitor_last_used_;}
@@ -909,6 +918,7 @@ bool Configuration::prompt_to_log () const {return m_->prompt_to_log_;}
 bool Configuration::autoLog() const {return m_->autoLog_;}
 bool Configuration::decodes_from_top () const {return m_->decodes_from_top_;}
 bool Configuration::insert_blank () const {return m_->insert_blank_;}
+bool Configuration::decoded_text_psk_highlight() const {return m_->decoded_text_psk_highlight_;}
 bool Configuration::DXCC () const {return m_->DXCC_;}
 bool Configuration::ppfx() const {return m_->ppfx_;}
 bool Configuration::clear_DX () const {return m_->clear_DX_;}
@@ -972,15 +982,6 @@ bool Configuration::disableWriteALL() const {return m_->disableWriteALL_;}
 bool Configuration::disableWriteFoxQSO() const {return m_->disableWriteFoxQSO_;}
 bool Configuration::colourAll() const {return m_->colourAll_;}
 bool Configuration::autoCQfiltering() const {return m_->autoCQfiltering_;}
-void Configuration::setPileupMode(bool enabled, bool autoCQfiltering)
-{
-  m_->pileupMode_ = enabled;
-  m_->autoCQfiltering_ = autoCQfiltering;
-  m_->ui_->cb_autoCQfiltering->setChecked(autoCQfiltering);
-  m_->settings_->setValue("pileupMode", enabled);
-  m_->settings_->setValue("autoCQfiltering", autoCQfiltering);
-}
-bool Configuration::pileupMode() const {return m_->pileupMode_;}
 bool Configuration::rxTotxFreq() const {return m_->rxTotxFreq_;}
 bool Configuration::udpFiltering() const {return m_->udpFiltering_;}
 bool Configuration::highlightDX() const {return m_->highlightDX_;}
@@ -996,12 +997,6 @@ double Configuration::wd_FT4() const {return m_->wd_FT4_;}
 double Configuration::wd_FT2() const {return m_->wd_FT2_;}
 bool Configuration::wd_Timer() const {return m_->wd_Timer_;}
 bool Configuration::processTailenders() const {return m_->processTailenders_;}
-void Configuration::setProcessTailenders(bool enabled)
-{
-  m_->processTailenders_ = enabled;
-  m_->ui_->cb_processTailenders->setChecked(enabled);
-  m_->settings_->setValue("processTailenders", enabled);
-}
 QString Configuration::permIgnoreList() const {return m_->permIgnoreList_;}
 bool Configuration::showDistance() const {return m_->showDistance_;}
 bool Configuration::showBearing() const {return m_->showBearing_;}
@@ -1707,6 +1702,10 @@ void Configuration::impl::initialize_models ()
   ui_->CW_id_after_73_check_box->setChecked (id_after_73_);
   ui_->tx_QSY_check_box->setChecked (tx_QSY_allowed_);
   ui_->psk_reporter_check_box->setChecked (spot_to_psk_reporter_);
+  ui_->psk_reporter_band_activity_check_box->setChecked (psk_reporter_band_activity_);
+  ui_->psk_reporter_band_activity_check_box->setEnabled (spot_to_psk_reporter_);
+  connect (ui_->psk_reporter_check_box, &QCheckBox::toggled,
+           ui_->psk_reporter_band_activity_check_box, &QWidget::setEnabled);
   ui_->psk_reporter_tcpip_check_box->setChecked (psk_reporter_tcpip_);
   ui_->monitor_off_check_box->setChecked (monitor_off_at_startup_);
   ui_->monitor_last_used_check_box->setChecked (monitor_last_used_);
@@ -1846,6 +1845,7 @@ void Configuration::impl::initialize_models ()
   ui_->cb_showBearing->setChecked(showBearing_);
   ui_->cb_autoTune->setChecked(autoTune_);
   ui_->cb_autoTXFreq->setChecked(autoTXFreq_);
+  ui_->decoded_text_highlight_style_combo_box->setCurrentIndex(decoded_text_psk_highlight_ ? 1 : 0);
   ui_->cb_noFoxQSY->setChecked(noFoxQSY_);
   ui_->cb_showState->setChecked(showState_);
   ui_->cb_rawViewDXCC->setChecked(rawViewDXCC_);
@@ -1943,6 +1943,7 @@ void Configuration::impl::read_settings ()
   monitor_off_at_startup_ = settings_->value ("MonitorOFF", false).toBool ();
   monitor_last_used_ = settings_->value ("MonitorLastUsed", false).toBool ();
   spot_to_psk_reporter_ = settings_->value ("PSKReporter", false).toBool ();
+  psk_reporter_band_activity_ = settings_->value ("PSKReporterBandActivity", false).toBool ();
   psk_reporter_tcpip_ = settings_->value ("PSKReporterTCPIP", false).toBool ();
   id_after_73_ = settings_->value ("After73", false).toBool ();
   tx_QSY_allowed_ = settings_->value ("TxQSYAllowed", false).toBool ();
@@ -2110,7 +2111,6 @@ void Configuration::impl::read_settings ()
   disableWriteALL_ = settings_->value("disableWriteALL").toBool();
   disableWriteFoxQSO_ = settings_->value("disableWriteFoxQSO").toBool();
   colourAll_ = settings_->value("colourAll").toBool();
-  pileupMode_ = settings_->value("pileupMode", false).toBool();
   autoCQfiltering_ = settings_->value("autoCQfiltering").toBool();
   rxTotxFreq_ = settings_->value("rxTotxFreq").toBool();
   udpFiltering_ = settings_->value("udpFiltering").toBool();
@@ -2139,7 +2139,8 @@ void Configuration::impl::read_settings ()
   clearRx_ = settings_->value("clearRx", false).toBool();
   freezeBA_ = settings_->value("freezeBA", false).toBool();
   removeExtra_ = settings_->value("removeExtra", false).toBool();
-  ignoreListReset_ = settings_->value("ignoreListReset",0).toInt ();
+  decoded_text_psk_highlight_ = settings_->value("DecodedTextHighlightUnderline", true).toBool();
+  ignoreListReset_ = settings_->value("ignoreListReset",0).toInt (); 
   separatorColor_ = settings_->value("separatorColor", "#777777").toString();
   alertCmdLine_ = settings_->value("alertCmdLine").toString();
 }
@@ -2220,7 +2221,9 @@ void Configuration::impl::write_settings ()
   settings_->setValue ("MonitorOFF", monitor_off_at_startup_);
   settings_->setValue ("MonitorLastUsed", monitor_last_used_);
   settings_->setValue ("PSKReporter", spot_to_psk_reporter_);
+  settings_->setValue ("PSKReporterBandActivity", psk_reporter_band_activity_);
   settings_->setValue ("PSKReporterTCPIP", psk_reporter_tcpip_);
+  settings_->setValue ("DecodedTextHighlightUnderline", decoded_text_psk_highlight_);
   settings_->setValue ("After73", id_after_73_);
   settings_->setValue ("TxQSYAllowed", tx_QSY_allowed_);
   settings_->setValue ("Macros", macros_.stringList ());
@@ -2308,7 +2311,6 @@ void Configuration::impl::write_settings ()
   settings_->setValue("disableWriteALL", disableWriteALL_);
   settings_->setValue("disableWriteFoxQSO", disableWriteFoxQSO_);
   settings_->setValue("colourAll", colourAll_);
-  settings_->setValue("pileupMode", pileupMode_);
   settings_->setValue("autoCQfiltering", autoCQfiltering_);
   settings_->setValue("rxTotxFreq", rxTotxFreq_);
   settings_->setValue("udpFiltering", udpFiltering_);
@@ -2743,6 +2745,7 @@ void Configuration::impl::accept ()
   RTTY_exchange_= ui_->RTTY_Exchange->text ().toUpper ();
   Contest_Name_= ui_->Contest_Name->text ().toUpper ();
   spot_to_psk_reporter_ = ui_->psk_reporter_check_box->isChecked ();
+  psk_reporter_band_activity_ = ui_->psk_reporter_band_activity_check_box->isChecked ();
   psk_reporter_tcpip_ = ui_->psk_reporter_tcpip_check_box->isChecked ();
   id_interval_ = ui_->CW_id_interval_spin_box->value ();
   ntrials_ = ui_->sbNtrials->value ();
@@ -2914,6 +2917,7 @@ void Configuration::impl::accept ()
   clearRx_ = ui_->cb_clearRx->isChecked();
   freezeBA_ = ui_->cb_freezeBA->isChecked();
   removeExtra_ = ui_->cb_removeExtra->isChecked();
+  decoded_text_psk_highlight_ = ui_->decoded_text_highlight_style_combo_box->currentIndex() == 1;
   ignoreListReset_ = ui_->sb_ignoreListReset->value();
   separatorColor_ = ui_->le_separatorColor->text();
   alertCmdLine_ = ui_->le_alertCmdLine->text();

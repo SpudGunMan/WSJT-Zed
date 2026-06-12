@@ -118,6 +118,8 @@ public:
   bool id_after_73 () const;
   bool tx_QSY_allowed () const;
   bool spot_to_psk_reporter () const;
+  bool psk_reporter_band_activity () const;
+  bool psk_reporter_enabled () const;
   bool psk_reporter_tcpip () const;
   bool monitor_off_at_startup () const;
   bool monitor_last_used () const;
@@ -127,6 +129,7 @@ public:
   bool autoLog() const;
   bool decodes_from_top () const;
   bool insert_blank () const;
+  bool decoded_text_psk_highlight() const;
   bool DXCC () const;
   bool ppfx() const;
   bool clear_DX () const;
@@ -215,8 +218,6 @@ public:
   bool disableWriteFoxQSO() const;
   bool colourAll() const;
   bool autoCQfiltering() const;
-  void setPileupMode(bool enabled, bool autoCQfiltering);
-  bool pileupMode() const;
   bool rxTotxFreq() const;
   bool udpFiltering() const;
   bool highlightDX() const;
@@ -231,7 +232,6 @@ public:
   double wd_FT2() const;
   bool wd_Timer() const;
   bool processTailenders() const;
-  void setProcessTailenders(bool enabled);
   QString permIgnoreList() const;
   bool showDistance() const ;
   bool showBearing() const ;

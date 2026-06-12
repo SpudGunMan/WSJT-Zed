@@ -150,11 +150,11 @@ namespace
 }
 
 void DisplayText::insertText(QString const& text, QColor bg, QColor fg
-                             , QString const& call1, QString const& call2, QTextCursor::MoveOperation location, bool underline)
+                             , QString const& call1, QString const& call2, QTextCursor::MoveOperation location, bool psk_highlight)
 {
 
     if (m_freezeUpdates) {
-        m_updateBuffer.append({text, bg, fg, call1, call2, location, underline});
+        m_updateBuffer.append({text, bg, fg, call1, call2, location, psk_highlight});
         return;
     }
 
@@ -163,7 +163,7 @@ void DisplayText::insertText(QString const& text, QColor bg, QColor fg
   auto block_format = cursor.blockFormat ();
   auto format = cursor.blockCharFormat ();
   format.setFont (char_font_);
-  if (underline) {
+  if (psk_highlight) {
     format.setFontUnderline (true);
   }
   block_format.clearBackground ();
@@ -648,7 +648,7 @@ namespace {
 }
 
 void DisplayText::highlight_callsign_line (QString const& callsign, QColor const& bg,
-                                           QColor const& fg, bool last_period_only, bool underline)
+                                           QColor const& fg, bool last_period_only, bool psk_highlight)
 {
   if (!callsign.size ())
     {
@@ -693,8 +693,15 @@ void DisplayText::highlight_callsign_line (QString const& callsign, QColor const
             format.setForeground (fg);
           else
             format.clearForeground ();
-          bool lineUnderline = underline && is_transmitting_call(cursor.selectedText(), callsign);
-          format.setFontUnderline (lineUnderline);
+          bool lineHighlight = psk_highlight && is_transmitting_call(cursor.selectedText(), callsign);
+          if (m_config && m_config->decoded_text_psk_highlight())
+            {
+              format.setFontUnderline (lineHighlight);
+            }
+          else
+            {
+              format.setFontWeight (lineHighlight ? QFont::Bold : QFont::Normal);
+            }
           cursor.mergeCharFormat (format);
         }
     }
@@ -852,11 +859,11 @@ void DisplayText::flushUpdates() {
         QColor bg, fg;
         QString call1, call2;
         QTextCursor::MoveOperation location;
-        bool underline;
+        bool psk_highlight;
 
-        std::tie(text, bg, fg, call1, call2, location, underline) = update;
+        std::tie(text, bg, fg, call1, call2, location, psk_highlight) = update;
 
-        insertText(text, bg, fg, call1, call2, location, underline);
+        insertText(text, bg, fg, call1, call2, location, psk_highlight);
     }
     m_updateBuffer.clear();
 }
