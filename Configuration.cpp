@@ -1845,7 +1845,7 @@ void Configuration::impl::initialize_models ()
   ui_->cb_showBearing->setChecked(showBearing_);
   ui_->cb_autoTune->setChecked(autoTune_);
   ui_->cb_autoTXFreq->setChecked(autoTXFreq_);
-  ui_->decoded_text_highlight_style_combo_box->setCurrentIndex(decoded_text_psk_highlight_ ? 1 : 0);
+  ui_->decoded_text_highlight_style_combo_box->setCurrentIndex(decoded_text_psk_highlight_ ? 0 : 1);
   ui_->cb_noFoxQSY->setChecked(noFoxQSY_);
   ui_->cb_showState->setChecked(showState_);
   ui_->cb_rawViewDXCC->setChecked(rawViewDXCC_);
@@ -2917,7 +2917,7 @@ void Configuration::impl::accept ()
   clearRx_ = ui_->cb_clearRx->isChecked();
   freezeBA_ = ui_->cb_freezeBA->isChecked();
   removeExtra_ = ui_->cb_removeExtra->isChecked();
-  decoded_text_psk_highlight_ = ui_->decoded_text_highlight_style_combo_box->currentIndex() == 1;
+  decoded_text_psk_highlight_ = ui_->decoded_text_highlight_style_combo_box->currentIndex() == 0;
   ignoreListReset_ = ui_->sb_ignoreListReset->value();
   separatorColor_ = ui_->le_separatorColor->text();
   alertCmdLine_ = ui_->le_alertCmdLine->text();
