@@ -767,6 +767,16 @@ private:
   QDateTime m_watchdogAnchorUtc;
   qint64 m_msTxFirst;
   bool m_TxFirstLock = false;
+  bool m_savedAutoCQfiltering = false;
+  bool m_savedProcessTailenders = false;
+  bool m_savedAutoCQfilteringValid = false;
+  bool m_savedContinentEU = true;
+  bool m_savedContinentAF = true;
+  bool m_savedContinentAN = true;
+  bool m_savedContinentAS = true;
+  bool m_savedContinentNA = true;
+  bool m_savedContinentSA = true;
+  bool m_savedContinentOC = true;
   bool m_AutoTxFreq = false;
   int qso_total = 0;
   int qso_new = 0;
@@ -982,7 +992,8 @@ private:
   bool m_tx_when_ready;
   bool m_transmitting;
   bool m_tune;
-  bool m_autoCQWatchdogPending;
+  bool m_autoCQWatchdogPending = false;
+  bool m_watchdogPendingDisable = false;
   bool m_tx_watchdog;           // true when watchdog triggered
   bool m_block_pwr_tooltip;
   bool m_PwrBandSetOK;
@@ -1008,6 +1019,7 @@ private:
   void qrzLookup(QString dxCall);
   void qrzVisible(bool b);
   void clearCallInfo();
+  void apply_pileup_mode_side_effects(bool enabled);
   QString  stateLookup(QString callsign);
   QString leftJustifyAppendage (QString message, QString appendage);
   void updateBandActivityTitleLabel();
@@ -1021,6 +1033,7 @@ private:
   void createStatusBar();
   void update_mode_switch_status_label();
   void update_auto_mode_switch_widget();
+  void update_auto_call_pileup_mode_ui();
   void updateStatusBar();
   void genStdMsgs(QString rpt, bool unconditional = false);
   void genCQMsg();
