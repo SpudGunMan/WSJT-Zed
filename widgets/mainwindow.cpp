@@ -1441,6 +1441,7 @@ void MainWindow::on_the_minute ()
     if (pause_for_autocq) {
       // Freeze WD accrual while AutoCQ is parked in CALLING state.
       m_watchdogAnchorUtc = now_utc;
+      tx_watchdog (false);
     } else {
       auto elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
       if (elapsed_seconds < 0) {
@@ -1456,7 +1457,7 @@ void MainWindow::on_the_minute ()
     else update_watchdog_label ();
   }
   update_foxLogWindow_rate(); // update the rate on the window
-  if ((!verified && ui->labDXped->isVisible()) or !ui->labDXped->text().contains("Hound"))
+  if ((!verified && ui->labDXped->isVisible()) || !ui->labDXped->text().contains("Hound"))
     ui->labDXped->setStyleSheet("QLabel {background-color: red; color: white;}");
   verified = false;
 }
