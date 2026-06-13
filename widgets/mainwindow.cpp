@@ -1440,6 +1440,7 @@ void MainWindow::on_the_minute ()
     }
     if (pause_for_autocq) {
       // Freeze WD accrual while AutoCQ is parked in CALLING state.
+      m_idleMinutes = 0;
       m_watchdogAnchorUtc = now_utc;
       tx_watchdog (false);
     } else {
