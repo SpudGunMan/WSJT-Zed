@@ -15320,7 +15320,6 @@ void MainWindow::ZProcess ()
                             } else if (m_config.autoTXFreq()) {
                               m_autoTXFreq = true;
                             }
-                            m_autoModeSwitch = false;
                             if  (!m_TxFirstLock) {
                                     QDateTime now {QDateTime::currentDateTimeUtc()};
                                     int n=fmod(double(now.time().second()),m_TRperiod);
@@ -15336,8 +15335,9 @@ void MainWindow::ZProcess ()
                               ui->cbHoldTxFreq->setChecked(true);
                             }
                             resetAutoSwitch();
-                            if (!m_autoModeSwitch) clearDX();
+                            clearDX();
                             if (m_zdebug) log("ZProcess: Switched to AutoCQ");
+                            tx_watchdog(false);
                         } else {
                             toggleBands();
                         }
@@ -15365,7 +15365,6 @@ void MainWindow::ZProcess ()
                               if (m_smartModeSwitch) {
                                 ui->cbHoldTxFreq->setChecked(false);
                               }
-                              m_autoModeSwitch = false;
                               if (m_zdebug) log("ZProcess: Switched to AutoCall");
                           } else {
                               toggleBands();
