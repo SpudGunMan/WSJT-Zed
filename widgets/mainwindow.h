@@ -450,7 +450,7 @@ private slots:
      void on_actionAbout_WSJT_Z_triggered();
      void on_pb_WDReset_clicked();
      void resetAutoSwitch();
-    double watchdog();
+     int watchdog();
      void on_actionUnfiltered_View_triggered();
      void on_actionPSKReporter_triggered();
      void updateQsoCounter(bool increment);
@@ -633,7 +633,7 @@ private:
   qint32  m_inGain;
   qint32  m_ncw;
   qint32  m_secID;
-  double  m_idleMinutes;
+  qint32  m_idleMinutes;
   qint32  m_nSubMode;
   qint32  m_nSubMode_Q65;
   qint32  m_nSubMode_JT65;
@@ -764,9 +764,18 @@ private:
   QSet<QString> m_pskReporterReceivers;
   QThread * m_pskReporterThread;
   QDateTime m_ignoreListReset;
-  QDateTime m_watchdogAnchorUtc;
   qint64 m_msTxFirst;
   bool m_TxFirstLock = false;
+  bool m_savedAutoCQfiltering = false;
+  bool m_savedProcessTailenders = false;
+  bool m_savedAutoCQfilteringValid = false;
+  bool m_savedContinentEU = true;
+  bool m_savedContinentAF = true;
+  bool m_savedContinentAN = true;
+  bool m_savedContinentAS = true;
+  bool m_savedContinentNA = true;
+  bool m_savedContinentSA = true;
+  bool m_savedContinentOC = true;
   bool m_AutoTxFreq = false;
   int qso_total = 0;
   int qso_new = 0;
@@ -982,7 +991,6 @@ private:
   bool m_tx_when_ready;
   bool m_transmitting;
   bool m_tune;
-  bool m_autoCQWatchdogPending;
   bool m_tx_watchdog;           // true when watchdog triggered
   bool m_block_pwr_tooltip;
   bool m_PwrBandSetOK;
@@ -1008,6 +1016,7 @@ private:
   void qrzLookup(QString dxCall);
   void qrzVisible(bool b);
   void clearCallInfo();
+  void apply_pileup_mode_side_effects(bool enabled);
   QString  stateLookup(QString callsign);
   QString leftJustifyAppendage (QString message, QString appendage);
   void updateBandActivityTitleLabel();
@@ -1021,6 +1030,7 @@ private:
   void createStatusBar();
   void update_mode_switch_status_label();
   void update_auto_mode_switch_widget();
+  void update_auto_call_pileup_mode_ui();
   void updateStatusBar();
   void genStdMsgs(QString rpt, bool unconditional = false);
   void genCQMsg();
@@ -1079,7 +1089,6 @@ private:
   void subProcessError (QProcess *, QProcess::ProcessError);
   void statusUpdate () const;
   void update_watchdog_label ();
-  void reset_watchdog_on_click ();
   void invalidate_frequencies_filter ();
   void on_the_minute ();
   void add_child_to_event_filter (QObject *);

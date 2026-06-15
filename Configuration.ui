@@ -1994,10 +1994,10 @@ and DX Grid fields when a 73 or free text message is sent.</string>
           <item>
            <widget class="QCheckBox" name="psk_reporter_band_activity_check_box">
             <property name="toolTip">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enable PSK Reporter band activity feedback so data is passed automatically without opening the PSK Reporter window.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enable PSK Reporter band activity feedback so data is passed automatically without opening the PSK Reporter window.&lt;/p&gt;&lt;p&gt;A restart is required after enabling this setting.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
-             <string>Enable PSK Reporter band activity feedback</string>
+             <string>Enable PSK Reporter band activity feedback (restart required)</string>
             </property>
            </widget>
           </item>
@@ -3946,14 +3946,7 @@ Right click for insert and delete options.</string>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QDoubleSpinBox" name="sb_WD_FT8">
-            <property name="decimals">
-             <number>2</number>
-            </property>
-            <property name="singleStep">
-             <double>0.250000000000000</double>
-            </property>
-           </widget>
+           <widget class="QSpinBox" name="sb_WD_FT8"/>
           </item>
           <item row="0" column="0">
            <widget class="QLabel" name="label_16">
@@ -3963,14 +3956,7 @@ Right click for insert and delete options.</string>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QDoubleSpinBox" name="sb_WD_FT4">
-            <property name="decimals">
-             <number>2</number>
-            </property>
-            <property name="singleStep">
-             <double>0.250000000000000</double>
-            </property>
-           </widget>
+           <widget class="QSpinBox" name="sb_WD_FT4"/>
           </item>
           <item row="2" column="0">
            <widget class="QLabel" name="label_WD_FT2">
@@ -3980,14 +3966,7 @@ Right click for insert and delete options.</string>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QDoubleSpinBox" name="sb_WD_FT2">
-            <property name="decimals">
-             <number>2</number>
-            </property>
-            <property name="singleStep">
-             <double>0.250000000000000</double>
-            </property>
-           </widget>
+           <widget class="QSpinBox" name="sb_WD_FT2"/>
           </item>
          </layout>
         </widget>

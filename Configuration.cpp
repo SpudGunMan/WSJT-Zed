@@ -817,6 +817,7 @@ private:
   bool disableWriteALL_;
   bool disableWriteFoxQSO_;
   bool colourAll_;
+  bool pileupMode_;
   bool autoCQfiltering_;
   bool rxTotxFreq_;
   bool udpFiltering_;
@@ -828,9 +829,9 @@ private:
   bool autoFreqWide_;
   bool wdResetAnywhere_;
   int padding_;
-  double wd_FT8_;
-  double wd_FT4_;
-  double wd_FT2_;
+  int wd_FT8_;
+  int wd_FT4_;
+  int wd_FT2_;
   bool wd_Timer_;
   bool processTailenders_;
   QString permIgnoreList_;
@@ -982,6 +983,15 @@ bool Configuration::disableWriteALL() const {return m_->disableWriteALL_;}
 bool Configuration::disableWriteFoxQSO() const {return m_->disableWriteFoxQSO_;}
 bool Configuration::colourAll() const {return m_->colourAll_;}
 bool Configuration::autoCQfiltering() const {return m_->autoCQfiltering_;}
+void Configuration::setPileupMode(bool enabled, bool autoCQfiltering)
+{
+  m_->pileupMode_ = enabled;
+  m_->autoCQfiltering_ = autoCQfiltering;
+  m_->ui_->cb_autoCQfiltering->setChecked(autoCQfiltering);
+  m_->settings_->setValue("pileupMode", enabled);
+  m_->settings_->setValue("autoCQfiltering", autoCQfiltering);
+}
+bool Configuration::pileupMode() const {return m_->pileupMode_;}
 bool Configuration::rxTotxFreq() const {return m_->rxTotxFreq_;}
 bool Configuration::udpFiltering() const {return m_->udpFiltering_;}
 bool Configuration::highlightDX() const {return m_->highlightDX_;}
@@ -992,9 +1002,9 @@ bool Configuration::autoFreqNarrow() const {return m_->autoFreqNarrow_;}
 bool Configuration::autoFreqWide() const {return m_->autoFreqWide_;}
 bool Configuration::wdResetAnywhere() const {return m_->wdResetAnywhere_;}
 int Configuration::padding() const {return m_->padding_;}
-double Configuration::wd_FT8() const {return m_->wd_FT8_;}
-double Configuration::wd_FT4() const {return m_->wd_FT4_;}
-double Configuration::wd_FT2() const {return m_->wd_FT2_;}
+int Configuration::wd_FT8() const {return m_->wd_FT8_;}
+int Configuration::wd_FT4() const {return m_->wd_FT4_;}
+int Configuration::wd_FT2() const {return m_->wd_FT2_;}
 bool Configuration::wd_Timer() const {return m_->wd_Timer_;}
 bool Configuration::processTailenders() const {return m_->processTailenders_;}
 QString Configuration::permIgnoreList() const {return m_->permIgnoreList_;}
@@ -1845,7 +1855,7 @@ void Configuration::impl::initialize_models ()
   ui_->cb_showBearing->setChecked(showBearing_);
   ui_->cb_autoTune->setChecked(autoTune_);
   ui_->cb_autoTXFreq->setChecked(autoTXFreq_);
-  ui_->decoded_text_highlight_style_combo_box->setCurrentIndex(decoded_text_psk_highlight_ ? 1 : 0);
+  ui_->decoded_text_highlight_style_combo_box->setCurrentIndex(decoded_text_psk_highlight_ ? 0 : 1);
   ui_->cb_noFoxQSY->setChecked(noFoxQSY_);
   ui_->cb_showState->setChecked(showState_);
   ui_->cb_rawViewDXCC->setChecked(rawViewDXCC_);
@@ -2111,6 +2121,7 @@ void Configuration::impl::read_settings ()
   disableWriteALL_ = settings_->value("disableWriteALL").toBool();
   disableWriteFoxQSO_ = settings_->value("disableWriteFoxQSO").toBool();
   colourAll_ = settings_->value("colourAll").toBool();
+  pileupMode_ = settings_->value("pileupMode", false).toBool();
   autoCQfiltering_ = settings_->value("autoCQfiltering").toBool();
   rxTotxFreq_ = settings_->value("rxTotxFreq").toBool();
   udpFiltering_ = settings_->value("udpFiltering").toBool();
@@ -2122,9 +2133,9 @@ void Configuration::impl::read_settings ()
   dbgFile_ = settings_->value("dbgFile").toBool();
   wdResetAnywhere_ = settings_->value("wdResetAnywhere", true).toBool();
   padding_ = settings_->value("padding",42).toInt ();
-  wd_FT8_ = settings_->value("wd_FT8",2.0).toDouble ();
-  wd_FT4_ = settings_->value("wd_FT4",1.0).toDouble ();
-  wd_FT2_ = settings_->value("wd_FT2",1.0).toDouble ();
+  wd_FT8_ = settings_->value("wd_FT8",2).toInt ();
+  wd_FT4_ = settings_->value("wd_FT4",1).toInt ();
+  wd_FT2_ = settings_->value("wd_FT2",1).toInt ();
   wd_Timer_ = settings_->value("wd_Timer", false).toBool();
   processTailenders_ = settings_->value("processTailenders", false).toBool();
   permIgnoreList_ = settings_->value("permIgnoreList").toString();
@@ -2311,6 +2322,7 @@ void Configuration::impl::write_settings ()
   settings_->setValue("disableWriteALL", disableWriteALL_);
   settings_->setValue("disableWriteFoxQSO", disableWriteFoxQSO_);
   settings_->setValue("colourAll", colourAll_);
+  settings_->setValue("pileupMode", pileupMode_);
   settings_->setValue("autoCQfiltering", autoCQfiltering_);
   settings_->setValue("rxTotxFreq", rxTotxFreq_);
   settings_->setValue("udpFiltering", udpFiltering_);
@@ -2917,7 +2929,7 @@ void Configuration::impl::accept ()
   clearRx_ = ui_->cb_clearRx->isChecked();
   freezeBA_ = ui_->cb_freezeBA->isChecked();
   removeExtra_ = ui_->cb_removeExtra->isChecked();
-  decoded_text_psk_highlight_ = ui_->decoded_text_highlight_style_combo_box->currentIndex() == 1;
+  decoded_text_psk_highlight_ = ui_->decoded_text_highlight_style_combo_box->currentIndex() == 0;
   ignoreListReset_ = ui_->sb_ignoreListReset->value();
   separatorColor_ = ui_->le_separatorColor->text();
   alertCmdLine_ = ui_->le_alertCmdLine->text();

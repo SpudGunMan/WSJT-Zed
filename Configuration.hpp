@@ -218,6 +218,8 @@ public:
   bool disableWriteFoxQSO() const;
   bool colourAll() const;
   bool autoCQfiltering() const;
+  void setPileupMode(bool enabled, bool autoCQfiltering);
+  bool pileupMode() const;
   bool rxTotxFreq() const;
   bool udpFiltering() const;
   bool highlightDX() const;
@@ -227,9 +229,9 @@ public:
   bool autoFreqWide() const;
   bool autoFreqNarrow() const;
   bool wdResetAnywhere() const;
-  double wd_FT8() const ;
-  double wd_FT4() const;
-  double wd_FT2() const;
+  int wd_FT8() const ;
+  int wd_FT4() const;
+  int wd_FT2() const;
   bool wd_Timer() const;
   bool processTailenders() const;
   QString permIgnoreList() const;
