@@ -1433,8 +1433,8 @@ void MainWindow::on_the_minute ()
   // Keep AutoCQ's existing CALLING pause behavior, but let AutoCall obey WD.
   bool const pause_for_autocq = ui->cbAutoCQ->isChecked ()
                                 && m_QSOProgress == CALLING;
+  auto const now_utc = QDateTime::currentDateTimeUtc ();
   if (wd_enabled) {
-    auto const now_utc = QDateTime::currentDateTimeUtc ();
     if (!m_watchdogAnchorUtc.isValid ()) {
       // If the anchor is not valid, initialize it to now and reset idle time. This can happen when WD is enabled for the first time, or when switching modes.
       m_watchdogAnchorUtc = now_utc;
@@ -1455,7 +1455,7 @@ void MainWindow::on_the_minute ()
     update_watchdog_label ();
   } else {
     // If WD is not enabled, reset the anchor and idle time, and update the label if we were previously in WD mode.
-    m_watchdogAnchorUtc = QDateTime {};
+    m_watchdogAnchorUtc = now_utc;
     m_idleMinutes = 0.0;
     if (m_tx_watchdog) tx_watchdog (false);
     else update_watchdog_label ();
