@@ -1436,12 +1436,12 @@ void MainWindow::on_the_minute ()
   if (wd_enabled) {
     auto const now_utc = QDateTime::currentDateTimeUtc ();
     if (!m_watchdogAnchorUtc.isValid ()) {
+      // If the anchor is not valid, initialize it to now and reset idle time. This can happen when WD is enabled for the first time, or when switching modes.
       m_watchdogAnchorUtc = now_utc;
+      m_idleMinutes = 0.0;
     }
     if (pause_for_autocq) {
       // Freeze WD accrual while AutoCQ is parked in CALLING state.
-      m_idleMinutes = 0;
-      m_watchdogAnchorUtc = now_utc;
       tx_watchdog (false);
     } else {
       auto elapsed_seconds = m_watchdogAnchorUtc.secsTo (now_utc);
@@ -1449,11 +1449,14 @@ void MainWindow::on_the_minute ()
         m_watchdogAnchorUtc = now_utc;
         elapsed_seconds = 0;
       }
+      // Cap idle minutes at the WD limit
       m_idleMinutes = qMin (wd_limit, elapsed_seconds / 60.0);
     }
     update_watchdog_label ();
   } else {
-    // Do not silently reset idle minutes every minute when WD is disabled.
+    // If WD is not enabled, reset the anchor and idle time, and update the label if we were previously in WD mode.
+    m_watchdogAnchorUtc = QDateTime {};
+    m_idleMinutes = 0.0;
     if (m_tx_watchdog) tx_watchdog (false);
     else update_watchdog_label ();
   }
@@ -15162,7 +15165,8 @@ void MainWindow::toggleBands() {
 
   Mode mode;
   if (m_mode == "FT8") mode = Mode::FT8;
-  else if ((m_mode=="FT4" or m_mode=="FT2")) mode = Mode::FT4;
+  else if ((m_mode=="FT4" )) mode = Mode::FT4;
+  else if ((m_mode=="FT2" )) mode = Mode::FT2;
   else return;
 
   // Pick the next different band in this schedule row that is available
