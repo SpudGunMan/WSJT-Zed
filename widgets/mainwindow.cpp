@@ -3404,7 +3404,6 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
       if (object == ui->EraseButton) {
         auto const *mouseEvent = static_cast<QMouseEvent const *> (event);
         if (mouseEvent->button() == Qt::RightButton) {
-          ui->stopTxButton->click (); // halt any transmission
           ui->tx1->clear();
           ui->tx2->clear();
           ui->tx3->clear();
@@ -3413,7 +3412,10 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
           ui->dxCallEntry->clear();
           ui->dxGridEntry->clear();
           ui->txrb6->setChecked(true);
-          if (m_zdebug) log("Tx stopped by right-click on Erase button");
+          if (ui->cbAutoCall->isChecked()) {
+            ui->stopTxButton->click (); // halt any transmission
+            if (m_zdebug) log("Tx stopped by right-click on Erase button");
+          }
           return true; // eat the event
         }
       }
