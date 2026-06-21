@@ -1926,6 +1926,7 @@ void MainWindow::readSettings()
   ui->cb_filtering->setChecked(m_settings->value("filter_enabled", true).toBool());
   // Misc tab
   ui->cb_autoModeSwitch->setChecked(m_settings->value("autoModeSwitchEnabled", false).toBool());
+  ui->pb_ModeChangeNow->setVisible(ui->cb_autoModeSwitch->isChecked());
   ui->cbAutoCQAlternateEvenOdd->setChecked(m_settings->value("autoCQAlternateEvenOdd", false).toBool());
   m_smartModeSwitch = m_settings->value("smartModeSwitchEnabled", false).toBool();
   update_auto_mode_switch_widget ();
@@ -1934,6 +1935,7 @@ void MainWindow::readSettings()
   ui->le_autoCQLeft->setText(m_settings->value("autoCQCount", 5).toString());
   ui->le_autoCallLeft->setText(m_settings->value("autoCallCount", 5).toString());
   ui->cb_bandHopper->setChecked(m_settings->value("bandHopperEnabled", false).toBool());
+  ui->pb_BandChangeNow->setVisible(ui->cb_bandHopper->isChecked());
   ui->pte_bandHopper->setPlainText(m_settings->value("bandHopper", "").toString());
   ui->cb_autoCallPriority->setCurrentIndex(m_settings->value ("AutoCallPriority", 0).toInt ());
   m_infoMessageShown = m_settings->value("infoMessageShown12-2024", false).toBool();
@@ -3402,6 +3404,7 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
       if (object == ui->EraseButton) {
         auto const *mouseEvent = static_cast<QMouseEvent const *> (event);
         if (mouseEvent->button() == Qt::RightButton) {
+          ui->stopTxButton->click (); // halt any transmission
           ui->tx1->clear();
           ui->tx2->clear();
           ui->tx3->clear();
@@ -3410,15 +3413,7 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
           ui->dxCallEntry->clear();
           ui->dxGridEntry->clear();
           ui->txrb6->setChecked(true);
-          if (ui->cbAutoCall->isChecked()) {
-            m_btxok=false;
-            m_bCallingCQ = false;
-            m_bAutoReply = false;         // ready for next
-            ui->autoButton->setChecked (false);
-            on_autoButton_clicked (false);
-            stopWRTimer.stop();           // stop a running Tx3 timer
-            if (m_zdebug) log("Tx stopped by right-click on Erase button");
-          }
+          if (m_zdebug) log("Tx stopped by right-click on Erase button");
           return true; // eat the event
         }
       }
@@ -3542,6 +3537,7 @@ void MainWindow::update_mode_switch_status_label ()
 
   if (ui->cb_bandHopper->isChecked ())
     {
+      ui->pb_BandChangeNow->setVisible (true);
       QString bhText = ui->pte_bandHopper->toPlainText ();
       QStringList bhList = bhText.split (QRegExp {"[\r\n]"}, SkipEmptyParts);
       int now = QDateTime::currentDateTimeUtc ().toString ("hh").toInt ();
@@ -3624,6 +3620,8 @@ void MainWindow::update_mode_switch_status_label ()
                 }
             }
         }
+    } else {
+      ui->pb_BandChangeNow->setVisible (false);
     }
 
   mode_switch_status_label.setVisible (!parts.isEmpty ());
@@ -6325,6 +6323,7 @@ void MainWindow::on_EraseButton_clicked ()
   }
 
   if (m_nEraseClicks >= 3) {
+    ui->stopTxButton->click (); // halt any transmission
     ui->tx1->clear();
     ui->tx2->clear();
     ui->tx3->clear();
@@ -6333,15 +6332,7 @@ void MainWindow::on_EraseButton_clicked ()
     ui->dxCallEntry->clear();
     ui->dxGridEntry->clear();
     ui->txrb6->setChecked(true);
-    if (ui->cbAutoCall->isChecked()) {
-      m_btxok=false;
-      m_bCallingCQ = false;
-      m_bAutoReply = false;         // ready for next
-      ui->autoButton->setChecked (false);
-      on_autoButton_clicked (false);
-      stopWRTimer.stop();           // stop a running Tx3 timer
-      if (m_zdebug) log("Auto-sequencing stopped by triple Erase click");
-    }
+    if (m_zdebug) log("Auto-sequencing stopped by triple Erase click");
     m_nEraseClicks = 0;
   }
 
@@ -15116,6 +15107,7 @@ void MainWindow::update_auto_mode_switch_widget()
       m_smartModeSwitch ? tr ("Smart Mode Switching") : tr ("Mode Switching"));
   ui->cb_autoModeSwitch->setStyleSheet ("");
   ui->cbAutoCQAlternateEvenOdd->setEnabled(ui->cb_autoModeSwitch->isChecked());
+  ui->pb_ModeChangeNow->setVisible(ui->cb_autoModeSwitch->isChecked());
 }
 
 void MainWindow::toggleBands() {
@@ -15763,6 +15755,24 @@ bool MainWindow::isSlotFree(int f) {
 void MainWindow::on_pb_FreeFreq_clicked() {
     setFreeFreq();
     addSlot(ui->TxFreqSpinBox->value());
+}
+
+void MainWindow::on_pb_ModeChangeNow_clicked() {
+  if (ui->cbAutoCall->isChecked() && !ui->cbAutoCQ->isChecked()) {
+    ui->cbAutoCall->setChecked(false);
+    ui->cbAutoCQ->setChecked(true);
+    return;
+  }
+
+  if (!ui->cbAutoCall->isChecked() && ui->cbAutoCQ->isChecked()) {
+    ui->cbAutoCQ->setChecked(false);
+    ui->cbAutoCall->setChecked(true);
+    return;
+  }
+}
+
+void MainWindow::on_pb_BandChangeNow_clicked() {
+    toggleBands();
 }
 
 void MainWindow::execCmd(QString cmd) {
