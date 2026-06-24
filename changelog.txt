@@ -1,4 +1,18 @@
 == Changelog
+V2.0.16
+[fixes]
+- Watchdog timer reworked: idle time is now anchored to wall-clock (UTC) instead of per-minute increments, supports fractional minutes (0.25 step), no longer chops an in-progress transmission (disable is deferred to a TX-off boundary), and starts a fresh window on a new DX selection or a reset click. The WD label now shows seconds resolution (e.g. WD:45s, WD:1m30s) (PR #79, SpudGunMan).
+- Auto-QRM auto-stop hardened: the stop now triggers only when the selected DX station is in a directed exchange with someone other than you, using base-callsign normalization for sender/target matching. Reduces false stops and missed stops (PR #79, SpudGunMan).
+- FT2 band hopping fixed: toggleBands now maps FT2 to its own band schedule instead of folding it into FT4; band-hop boundary moved to the AutoCall->AutoCQ transition (PR #79, SpudGunMan).
+- Ignore-list adds are now de-duplicated (base-callsign aware) across the manual button, the right-click action, and watchdog-timeout auto-ignore (PR #79, SpudGunMan).
+- Erase button now routes through the canonical Stop TX path (stopTxButton->click()) for both right-click-erase and triple-erase, replacing duplicated manual tx-stop sequencing (PR #85, SpudGunMan).
+
+[features]
+- New "Mode Now" and "Band Now" buttons immediately toggle AutoCQ<->AutoCall or hop bands without waiting for the auto cycle; shown only when the corresponding auto feature is enabled (PR #84, SpudGunMan).
+
+[tooling]
+- Fix build with modern GCC/gfortran 14+: rename Fortran local SPLIT subroutine to JPLSPLIT (avoids clash with gfortran 14's new F2023 SPLIT intrinsic) and suppress a spurious -Wmaybe-uninitialized around placement-new HRDMessage usage. Tested on Debian, macOS, and JTSDK4111 (PR #77, SpudGunMan; issue #75).
+
 V2.0.15
 [features]
 - Pile-up mode for Auto Call: right-click the Auto Call checkbox to toggle. When enabled, all continent filters are temporarily disabled so you respond to stations calling you directly without adding to the pile-up. Continent settings are saved and restored when pile-up mode is toggled off. The Auto Call label turns red while active (PR #73, SpudGunMan).

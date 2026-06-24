@@ -3397,10 +3397,7 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
               return true;
             }
         }
-      // reset the Tx watchdog
       // Z
-      if (m_config.wdResetAnywhere())
-      tx_watchdog (false);
       if (object == ui->EraseButton) {
         auto const *mouseEvent = static_cast<QMouseEvent const *> (event);
         if (mouseEvent->button() == Qt::RightButton) {
@@ -3419,7 +3416,10 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
           return true; // eat the event
         }
       }
-        reset_watchdog_on_click ();
+        if (m_config.wdResetAnywhere()) {
+          // reset the Tx watchdog
+          reset_watchdog_on_click ();
+        }
       break;
 
     case QEvent::ChildAdded:
