@@ -76,7 +76,7 @@ set (PROJECT_MANUAL_DIRECTORY_URL https://groups.io/g/WSJT-Z)
 set (PROJECT_SAMPLES_URL https://sourceforge.net/projects/wsjt/files/)
 #set (PROJECT_SAMPLES_UPLOAD_DEST frs.sourceforge.net:/home/frs/project/wsjt/)
 # WSJT-Z mod version suffix shown in UI and package metadata.
-set (VERSION_Z "2.0.16")
+set (VERSION_Z "2.0.17a1")
 message (STATUS "******************************************************")
 message (STATUS "Building ${PROJECT_BUNDLE_NAME} ${VERSION_Z} (base WSJT-X ${PROJECT_VERSION}) for ${CMAKE_SYSTEM_NAME}-${PROJECT_ARCHITECTURE}")
 message (STATUS "******************************************************")
@@ -135,10 +135,10 @@ attach a debugger which will then receive the console output inside its console.
 
 if (APPLE)
   # otool -l <binary> | grep -A3 LC_VERSION_MIN_MACOSX
-  set (CMAKE_OSX_DEPLOYMENT_TARGET 10.12
+  set (CMAKE_OSX_DEPLOYMENT_TARGET 11.0
     CACHE STRING "Earliest version of macOS supported
 
-Earliest version we can support with Qt 5.12, C++11 & libc++ is 10.12.
+Earliest version we can support with Qt 5.12, C++11 & libc++ is 11.0.
 Do not override this if you intend to build an official deployable installer.")
 endif (APPLE)
 

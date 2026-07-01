@@ -299,6 +299,21 @@ namespace
     return words.size () > 1 && words.at (1) == "RR73;";
   }
 
+  bool composite_rr73_for_call (QStringList const& words, QString const& call)
+  {
+    if (!composite_rr73 (words))
+      return false;
+
+    auto const& base_call = Radio::base_callsign (call);
+    for (int i = 0; i < words.size (); ++i) {
+      if (token_matches_call (words.at (i), call)
+          || token_matches_call (words.at (i), base_call)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   int ms_minute_error ()
   {
     auto const& now = QDateTime::currentDateTimeUtc ();
@@ -6096,9 +6111,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
 
   auto const& raw_words = msg_no_hash.split(" ",SkipEmptyParts);
   bool composite_rr73_detected = composite_rr73 (raw_words);
-  bool composite_rr73_for_me = composite_rr73_detected
-    && (token_matches_call (raw_words.value (0), m_config.my_callsign ())
-        || token_matches_call (raw_words.value (0), m_baseCall));
+  bool composite_rr73_for_me = composite_rr73_for_call (raw_words, m_config.my_callsign ());
   bool terminal_signoff = is_73 || composite_rr73_detected;
 
   bool is_OK=false;
@@ -6163,6 +6176,11 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     bool const directed_with_selected_dx = selected_dx_is_sender || selected_dx_is_target;
     bool const directed_to_me = sender_is_me || target_is_me;
 
+    if (m_QSOProgress == SIGNOFF && !m_lastCall.isEmpty() && hiscall == m_lastCall) {
+      if (m_zdebug) log(QString("auto_sequence: ignoring late duplicate response after logged signoff for %1").arg(hiscall));
+      return;
+    }
+
     // Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
     bool const auto_qrm_guard_state = m_QSOProgress == CALLING
                       || m_QSOProgress == REPLYING
@@ -6170,6 +6188,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     bool const qrm_stop_window_match = m_QSOProgress == CALLING
       || qAbs (ui->TxFreqSpinBox->value () - df) <= int (stop_tolerance);
     if (m_auto
+        && ui->cbAutoCall->isChecked()
         && auto_qrm_guard_state
         && (SpecOp::HOUND != m_specOp) && qrm_stop_window_match //
         && message_words.at (2) != "DE"
@@ -7633,10 +7652,7 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
 
   QStringList w=message.clean_string ().mid(22).remove("<").remove(">").split(" ",SkipEmptyParts);
   auto const& raw_words = message.clean_string().split(" ", SkipEmptyParts);
-  bool const composite_rr73_detected = composite_rr73(raw_words);
-  bool const composite_rr73_for_me = composite_rr73_detected
-    && (token_matches_call(raw_words.value(0), m_config.my_callsign())
-        || token_matches_call(raw_words.value(0), m_baseCall));
+  bool const composite_rr73_for_me = composite_rr73_for_call(raw_words, m_config.my_callsign());
 
   // Z
   dxLookup(hiscall, hisgrid);
@@ -8538,6 +8554,7 @@ void MainWindow::clearDX ()
   m_lastCallsign.clear ();
   m_rptSent.clear ();
   m_rptRcvd.clear ();
+  m_hisCall.clear();
   m_qsoStart.clear ();
   m_qsoStop.clear ();
   m_inQSOwith.clear();
@@ -13800,6 +13817,7 @@ void MainWindow::on_cbAutoCall_toggled(bool b)
 
     update_auto_call_pileup_mode_ui();
     auto_tx_mode(false);
+    m_autoModeSwitch = false;
   update_mode_switch_status_label ();
 }
 
@@ -13829,6 +13847,7 @@ void MainWindow::on_cbAutoCQ_toggled(bool b)
     }
 
     auto_tx_mode(b);
+    m_autoModeSwitch = false;
   update_mode_switch_status_label ();
 }
 
@@ -15554,14 +15573,6 @@ void MainWindow::clearRXWindows() {
 }
 
 void MainWindow::on_actionPSKReporter_triggered() {
-    if (!m_config.spot_to_psk_reporter()) {
-        if (m_pskReporterView && m_pskReporterView->isVisible()) {
-            m_pskReporterView->hide();
-        }
-        showStatusMessage(tr("PSK Reporter is disabled in settings"));
-        return;
-    }
-
     if (m_pskReporterView) {
         if (m_pskReporterView->isVisible()) {
             m_pskReporterView->hide();
@@ -15570,7 +15581,6 @@ void MainWindow::on_actionPSKReporter_triggered() {
             m_pskReporterView->showNormal ();
             m_pskReporterView->setFont(m_config.decoded_text_font ());
             m_pskReporterView->raise ();
-            m_pskReporterView->activateWindow ();
         }
     } else {
         m_pskReporterView.reset (new PSKReporterWidget {nullptr, &m_config, &m_logBook});
