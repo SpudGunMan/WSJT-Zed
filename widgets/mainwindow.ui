@@ -3760,7 +3760,7 @@ list. The list can be maintained in Settings (F2).</string>
                             </sizepolicy>
                            </property>
                            <property name="toolTip">
-                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Priority of automatic station selection:&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;- Last decoded: &lt;/span&gt;call last decoded station&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;- Distance: &lt;/span&gt;call the station with the longest distance&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;- Signal strength: &lt;/span&gt;call the station with the strongest signal&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Priority of automatic station selection:&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;- Last decoded: &lt;/span&gt;call last decoded station&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;- Distance: &lt;/span&gt;call the station with the longest distance&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;- Signal strength: &lt;/span&gt;call the station with the strongest signal&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;- PSK spotted: &lt;/span&gt;prefer stations already seen by PSK Reporter receivers&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                            </property>
                            <item>
                             <property name="text">
@@ -3775,6 +3775,11 @@ list. The list can be maintained in Settings (F2).</string>
                            <item>
                             <property name="text">
                              <string>Distance</string>
+                            </property>
+                           </item>
+                           <item>
+                            <property name="text">
+                             <string>PSK spotted</string>
                             </property>
                            </item>
                           </widget>

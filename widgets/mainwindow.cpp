@@ -1683,6 +1683,7 @@ void MainWindow::writeSettings()
   m_settings->setValue ("AutoIgnore", ui->cb_IgnoreAfterWD->isChecked());
   m_settings->setValue ("filter_LOTW", ui->cb_f_LOTW->isChecked());
   m_settings->setValue ("CQonlyIncl73", ui->cbCQonlyIncl73->isChecked());
+  m_settings->setValue ("CQonly", ui->cbCQonly->isChecked());
   m_settings->setValue ("dockWaterfall", ui->cbDockWF->isChecked());
   m_settings->setValue ("showCallInfo", ui->actionCall_info->isChecked());
   m_settings->setValue ("filter_enabled", ui->cb_filtering->isChecked());
@@ -1935,6 +1936,7 @@ void MainWindow::readSettings()
   ui->le_CustomAlerts->setText(m_settings->value("customAlerts").toString());
   ui->cb_IgnoreAfterWD->setChecked(m_settings->value("AutoIgnore",true).toBool());
   ui->cbCQonlyIncl73->setChecked(m_settings->value("CQonlyIncl73", false).toBool());
+  ui->cbCQonly->setChecked(m_settings->value("CQonly", false).toBool());
   ui->cbDockWF->setChecked(m_settings->value("dockWaterfall", false).toBool());
   ui->actionCall_info->setChecked(m_settings->value("showCallInfo", false).toBool());
   ui->actionDark_mode->setChecked(m_settings->value("darkMode", false).toBool());
@@ -14319,6 +14321,10 @@ bool MainWindow::callsignFiltered(DecodedText dt)
             m_maxDistance = 1;
         }
 
+    } else if (!skipAutoPriority && ui->cb_autoCallPriority->currentIndex() == 3) {
+        if (m_config.psk_reporter_band_activity() && m_pskReporterReceivers.contains(dxCall.toUpper())) {
+            prio = true;
+        }
     } else if (!skipAutoPriority && ui->cb_autoCallPriority->currentIndex() == 1) {
         bool convOK;
         int intdbM = dbM.toInt(&convOK);
