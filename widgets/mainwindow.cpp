@@ -299,7 +299,7 @@ namespace
 
   bool composite_rr73 (QStringList const& words)
   {
-    return words.size () > 1 && words.at (1) == "RR73;";
+    return words.size () > 1 && words.at (1).startsWith ("RR73");
   }
 
   bool composite_rr73_for_call (QStringList const& words, QString const& call)
@@ -6121,11 +6121,12 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
 
   bool is_OK=false;
   if(m_mode=="MSK144" && msg_no_hash.indexOf(ui->dxCallEntry->text()+" R ")>0) is_OK=true;
-  if (!(message_words.size () > 3 && (message.isStandardMessage() || (is_73 || is_OK)))) {
-    if (m_zdebug) log(QString("auto_sequence: skipped: size=%1 isStd=%2 is_73=%3 is_OK=%4")
+  if (!(message_words.size () > 3 && (message.isStandardMessage() || terminal_signoff || is_OK))) {
+    if (m_zdebug) log(QString("auto_sequence: skipped: size=%1 isStd=%2 is_73=%3 composite_rr73=%4 is_OK=%5")
                       .arg(message_words.size())
                       .arg(message.isStandardMessage())
                       .arg(is_73)
+                      .arg(composite_rr73_detected)
                       .arg(is_OK));
     return;
   }
