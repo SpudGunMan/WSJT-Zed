@@ -14326,7 +14326,9 @@ bool MainWindow::callsignFiltered(DecodedText dt)
         }
 
     } else if (!skipAutoPriority && ui->cb_autoCallPriority->currentIndex() == 3) {
-        if (m_config.psk_reporter_band_activity() && m_pskReporterReceivers.contains(dxCall.toUpper())) {
+        bool currentPriorityPskSpotted = !m_priorityCall.isEmpty() && m_pskReporterReceivers.contains(m_priorityCall.toUpper());
+        bool thisPskSpotted = m_config.psk_reporter_band_activity() && m_pskReporterReceivers.contains(dxCall.toUpper());
+        if (thisPskSpotted || !currentPriorityPskSpotted) {
             prio = true;
         }
     } else if (!skipAutoPriority && ui->cb_autoCallPriority->currentIndex() == 1) {
