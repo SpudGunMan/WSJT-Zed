@@ -14312,7 +14312,6 @@ bool MainWindow::callsignFiltered(DecodedText dt)
     bool preferPSKSpotted = ui->cb_autoCallPreferPSKSpotted->isChecked();
     bool thisPskSpotted = preferPSKSpotted && m_config.psk_reporter_band_activity() && m_pskReporterReceivers.contains(dxCall.toUpper());
     bool currentPriorityPskSpotted = preferPSKSpotted && m_config.psk_reporter_band_activity() && !m_priorityCall.isEmpty() && m_pskReporterReceivers.contains(m_priorityCall.toUpper());
-    bool haveAnyPskSpotted = preferPSKSpotted && m_config.psk_reporter_band_activity() && !m_pskReporterReceivers.isEmpty();
 
     if (!skipAutoPriority && ui->cb_autoCallPriority->currentIndex() == 2) {
         if (dxGrid.length() == 4 && dxGrid != "RR73" && !dxGrid.startsWith("R-") && !dxGrid.startsWith("R+")) {
