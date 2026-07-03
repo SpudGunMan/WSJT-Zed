@@ -6122,7 +6122,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
 
   bool is_OK=false;
   if(m_mode=="MSK144" && msg_no_hash.indexOf(ui->dxCallEntry->text()+" R ")>0) is_OK=true;
-  if (!(message_words.size () > 3 && (message.isStandardMessage() || terminal_signoff || is_OK))) {
+  if (!(message_words.size () > 2 && (message.isStandardMessage() || terminal_signoff || is_OK))) {
     if (m_zdebug) log(QString("auto_sequence: skipped: size=%1 isStd=%2 is_73=%3 composite_rr73=%4 is_OK=%5")
                       .arg(message_words.size())
                       .arg(message.isStandardMessage())
@@ -6131,7 +6131,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                       .arg(is_OK));
     return;
   }
-  if (message_words.size () > 3 && (message.isStandardMessage() || (is_73 or is_OK))) {
+  if (message_words.size () > 2 && (message.isStandardMessage() || terminal_signoff || is_OK)) {
     auto df = message.frequencyOffset ();
     auto within_tolerance = (qAbs (ui->RxFreqSpinBox->value () - df) <= int (start_tolerance)
        || qAbs (ui->TxFreqSpinBox->value () - df) <= int (start_tolerance));
@@ -14345,13 +14345,6 @@ bool MainWindow::callsignFiltered(DecodedText dt)
             prio = true;
         }
     }
-
-    if (preferPSKSpotted && (ui->cbAutoCall->isChecked() || ui->cbAutoCQ->isChecked())
-        && haveAnyPskSpotted && !thisPskSpotted) {
-        if (m_zdebug) log("callsignFiltered: non-PSK-spotted candidate filtered because PSK spotted preference is enabled");
-        return true;
-    }
-
 
     if (prio) {
         if (m_zdebug) log("++ New Priority Call: " + dxCall);
