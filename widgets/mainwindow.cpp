@@ -6174,7 +6174,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
         return Radio::base_callsign (token);
       };
     auto const sender_base = normalized_base (message_words.at (2));
-    auto const target_base = normalized_base (message_words.at (3));
+    auto const target_base = message_words.size() > 3 ? normalized_base (message_words.at (3)) : QString();
     auto const my_full_base = Radio::base_callsign (m_config.my_callsign ());
     bool const selected_dx_is_sender = have_selected_dx && sender_base == selected_dx_base;
     bool const selected_dx_is_target = have_selected_dx && target_base == selected_dx_base;
@@ -6208,7 +6208,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
         // Z
       if (m_zdebug) log(QString("auto_sequence stop branch: df=%1 stop_tolerance=%2 m_QSOProgress=%3 message_words[2]=%4 message_words[3]=%5 dxCall=%6")
                         .arg(df).arg(stop_tolerance).arg(m_QSOProgress)
-                        .arg(message_words.at(2)).arg(message_words.at(3)).arg(ui->dxCallEntry->text()));
+                        .arg(message_words.at(2)).arg(message_words.size() > 3 ? message_words.at(3) : "").arg(ui->dxCallEntry->text()));
       // Z
       if (m_zdebug) log("Automatic TX halt");
       ui->stopTxButton->click (); // halt any transmission
@@ -6221,7 +6221,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                     && !m_sentFirst73       // not finished QSO
                     && ((message_words.at (2).contains (m_baseCall)
                          // being called and not already in a QSO
-                         && (message_words.at(3).contains(Radio::base_callsign(ui->dxCallEntry->text()))
+                         && (message_words.size() > 3 && message_words.at(3).contains(Radio::base_callsign(ui->dxCallEntry->text()))
                              or bEU_VHF))
                         || composite_rr73_for_me // <de-call> RR73; ...
                         // type 2 compound replies
