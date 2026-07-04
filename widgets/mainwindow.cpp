@@ -14309,39 +14309,48 @@ bool MainWindow::callsignFiltered(DecodedText dt)
       m_maxSignal = -31;
     }
 
-    bool preferPSKSpotted = ui->cb_autoCallPreferPSKSpotted->isChecked();
-    bool thisPskSpotted = preferPSKSpotted && m_config.psk_reporter_band_activity() && m_pskReporterReceivers.contains(dxCall.toUpper());
-    bool currentPriorityPskSpotted = preferPSKSpotted && m_config.psk_reporter_band_activity() && !m_priorityCall.isEmpty() && m_pskReporterReceivers.contains(m_priorityCall.toUpper());
+    bool preferPSKSpotted = ui->cb_autoCallPreferPSKSpotted->isChecked() && m_config.psk_reporter_band_activity();
+    bool thisPskSpotted = preferPSKSpotted && m_pskReporterReceivers.contains(dxCall.toUpper());
+    bool currentPriorityPskSpotted = preferPSKSpotted && !m_priorityCall.isEmpty() && m_pskReporterReceivers.contains(m_priorityCall.toUpper());
 
-    if (!skipAutoPriority && ui->cb_autoCallPriority->currentIndex() == 2) {
-        if (dxGrid.length() == 4 && dxGrid != "RR73" && !dxGrid.startsWith("R-") && !dxGrid.startsWith("R+")) {
-            double utch=0.0;
-            int nAz,nEl,nDmiles,nDkm,nHotAz,nHotABetter;
-            azdist_(const_cast <char *> ((m_config.my_grid () + "      ").left (6).toLatin1 ().constData ()),
-                    const_cast <char *> (dxGrid.left (6).toLatin1 ().constData ()),&utch,
-                    &nAz,&nEl,&nDmiles,&nDkm,&nHotAz,&nHotABetter,6,6);
-            if (nDkm >  m_maxDistance) {
-                prio = true;
-                m_maxDistance = nDkm;
+    if (!skipAutoPriority) {
+        bool pskPrio = preferPSKSpotted && thisPskSpotted && !currentPriorityPskSpotted;
+        if (pskPrio) {
+            prio = true;
+        } else if (!preferPSKSpotted || (thisPskSpotted == currentPriorityPskSpotted)) {
+            // Fall through to standard priority checks only if PSK preference is off,
+            // or if both current and new candidates have the same PSK-spotted status.
+            switch (ui->cb_autoCallPriority->currentIndex()) {
+            case 2: // Distance
+                if (dxGrid.length() == 4 && dxGrid != "RR73" && !dxGrid.startsWith("R-") && !dxGrid.startsWith("R+")) {
+                    double utch=0.0;
+                    int nAz,nEl,nDmiles,nDkm,nHotAz,nHotABetter;
+                    azdist_(const_cast <char *> ((m_config.my_grid () + "      ").left (6).toLatin1 ().constData ()),
+                            const_cast <char *> (dxGrid.left (6).toLatin1 ().constData ()),&utch,
+                            &nAz,&nEl,&nDmiles,&nDkm,&nHotAz,&nHotABetter,6,6);
+                    if (nDkm > m_maxDistance) {
+                        prio = true;
+                        m_maxDistance = nDkm;
+                    }
+                } else {
+                    prio = true;
+                    m_maxDistance = 1;
+                }
+                break;
+            case 1: // Signal strength
+            {
+                bool convOK;
+                int intdbM = dbM.toInt(&convOK);
+                if (convOK && intdbM > m_maxSignal) {
+                    prio = true;
+                    m_maxSignal = intdbM;
+                }
             }
-
-        } else {
-            prio = true;
-            m_maxDistance = 1;
-        }
-
-    } else if (!skipAutoPriority && ui->cb_autoCallPriority->currentIndex() == 1) {
-        bool convOK;
-        int intdbM = dbM.toInt(&convOK);
-        if (convOK && intdbM >  m_maxSignal) {
-               prio = true;
-               m_maxSignal = intdbM;
-
-       }
-
-    } else if (!skipAutoPriority && ui->cb_autoCallPriority->currentIndex() == 0) {
-        if (!preferPSKSpotted || !currentPriorityPskSpotted || thisPskSpotted) {
-            prio = true;
+            break;
+            case 0: // Last decoded
+                prio = true;
+                break;
+            }
         }
     }
 
