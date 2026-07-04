@@ -6221,8 +6221,8 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                     && !m_sentFirst73       // not finished QSO
                     && ((message_words.at (2).contains (m_baseCall)
                          // being called and not already in a QSO
-                         && (message_words.size() > 3 && message_words.at(3).contains(Radio::base_callsign(ui->dxCallEntry->text()))
-                             or bEU_VHF))
+                         && ((message_words.size() > 3 && message_words.at(3).contains(Radio::base_callsign(ui->dxCallEntry->text())))
+                             || bEU_VHF))
                         || composite_rr73_for_me // <de-call> RR73; ...
                         // type 2 compound replies
                         || (within_tolerance &&
