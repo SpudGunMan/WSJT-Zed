@@ -286,35 +286,17 @@ namespace
 
   bool token_matches_call (QString const& token, QString const& call)
   {
-    auto normalized_token = token;
-    normalized_token.remove ('<');
-    normalized_token.remove ('>');
     auto const& base_call = Radio::base_callsign (call);
-    return !normalized_token.isEmpty ()
-      && (normalized_token == call
-          || normalized_token == base_call
-          || normalized_token.endsWith ("/" + base_call)
-          || normalized_token.startsWith (base_call + "/"));
+    return !token.isEmpty ()
+      && (token == call
+          || token == base_call
+          || token.endsWith ("/" + base_call)
+          || token.startsWith (base_call + "/"));
   }
 
   bool composite_rr73 (QStringList const& words)
   {
-    return words.size () > 1 && words.at (1).startsWith ("RR73");
-  }
-
-  bool composite_rr73_for_call (QStringList const& words, QString const& call)
-  {
-    if (!composite_rr73 (words))
-      return false;
-
-    auto const& base_call = Radio::base_callsign (call);
-    for (int i = 0; i < words.size (); ++i) {
-      if (token_matches_call (words.at (i), call)
-          || token_matches_call (words.at (i), base_call)) {
-        return true;
-      }
-    }
-    return false;
+    return words.size () > 1 && words.at (1) == "RR73;";
   }
 
   int ms_minute_error ()
@@ -6117,21 +6099,22 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
 
   auto const& raw_words = msg_no_hash.split(" ",SkipEmptyParts);
   bool composite_rr73_detected = composite_rr73 (raw_words);
-  bool composite_rr73_for_me = composite_rr73_for_call (raw_words, m_config.my_callsign ());
+  bool composite_rr73_for_me = composite_rr73_detected
+    && (token_matches_call (raw_words.value (0), m_config.my_callsign ())
+        || token_matches_call (raw_words.value (0), m_baseCall));
   bool terminal_signoff = is_73 || composite_rr73_detected;
 
   bool is_OK=false;
   if(m_mode=="MSK144" && msg_no_hash.indexOf(ui->dxCallEntry->text()+" R ")>0) is_OK=true;
-  if (!(message_words.size () > 2 && (message.isStandardMessage() || terminal_signoff || is_OK))) {
-    if (m_zdebug) log(QString("auto_sequence: skipped: size=%1 isStd=%2 is_73=%3 composite_rr73=%4 is_OK=%5")
+  if (!(message_words.size () > 3 && (message.isStandardMessage() || (is_73 || is_OK)))) {
+    if (m_zdebug) log(QString("auto_sequence: skipped: size=%1 isStd=%2 is_73=%3 is_OK=%4")
                       .arg(message_words.size())
                       .arg(message.isStandardMessage())
                       .arg(is_73)
-                      .arg(composite_rr73_detected)
                       .arg(is_OK));
     return;
   }
-  if (message_words.size () > 2 && (message.isStandardMessage() || terminal_signoff || is_OK)) {
+  if (message_words.size () > 3 && (message.isStandardMessage() || (is_73 or is_OK))) {
     auto df = message.frequencyOffset ();
     auto within_tolerance = (qAbs (ui->RxFreqSpinBox->value () - df) <= int (start_tolerance)
        || qAbs (ui->TxFreqSpinBox->value () - df) <= int (start_tolerance));
@@ -6174,7 +6157,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
         return Radio::base_callsign (token);
       };
     auto const sender_base = normalized_base (message_words.at (2));
-    auto const target_base = message_words.size() > 3 ? normalized_base (message_words.at (3)) : QString();
+    auto const target_base = normalized_base (message_words.at (3));
     auto const my_full_base = Radio::base_callsign (m_config.my_callsign ());
     bool const selected_dx_is_sender = have_selected_dx && sender_base == selected_dx_base;
     bool const selected_dx_is_target = have_selected_dx && target_base == selected_dx_base;
@@ -6208,7 +6191,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
         // Z
       if (m_zdebug) log(QString("auto_sequence stop branch: df=%1 stop_tolerance=%2 m_QSOProgress=%3 message_words[2]=%4 message_words[3]=%5 dxCall=%6")
                         .arg(df).arg(stop_tolerance).arg(m_QSOProgress)
-                        .arg(message_words.at(2)).arg(message_words.size() > 3 ? message_words.at(3) : "").arg(ui->dxCallEntry->text()));
+                        .arg(message_words.at(2)).arg(message_words.at(3)).arg(ui->dxCallEntry->text()));
       // Z
       if (m_zdebug) log("Automatic TX halt");
       ui->stopTxButton->click (); // halt any transmission
@@ -6221,8 +6204,8 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                     && !m_sentFirst73       // not finished QSO
                     && ((message_words.at (2).contains (m_baseCall)
                          // being called and not already in a QSO
-                         && ((message_words.size() > 3 && message_words.at(3).contains(Radio::base_callsign(ui->dxCallEntry->text())))
-                             || bEU_VHF))
+                         && (message_words.at(3).contains(Radio::base_callsign(ui->dxCallEntry->text()))
+                             or bEU_VHF))
                         || composite_rr73_for_me // <de-call> RR73; ...
                         // type 2 compound replies
                         || (within_tolerance &&
@@ -7659,7 +7642,10 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
 
   QStringList w=message.clean_string ().mid(22).remove("<").remove(">").split(" ",SkipEmptyParts);
   auto const& raw_words = message.clean_string().split(" ", SkipEmptyParts);
-  bool const composite_rr73_for_me = composite_rr73_for_call(raw_words, m_config.my_callsign());
+  bool const composite_rr73_detected = composite_rr73(raw_words);
+  bool const composite_rr73_for_me = composite_rr73_detected
+    && (token_matches_call(raw_words.value(0), m_config.my_callsign())
+        || token_matches_call(raw_words.value(0), m_baseCall));
 
   // Z
   dxLookup(hiscall, hisgrid);
