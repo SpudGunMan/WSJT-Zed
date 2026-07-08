@@ -6216,6 +6216,14 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                            || message_words.at (2).contains (m_baseCall))))) {
       if(SpecOp::FOX != m_specOp)
       {
+          // Handle composite RR73 messages by setting target call to tertiary caller
+          if (composite_rr73_for_me && message.is_composite_message ())
+            {
+              auto const& fields = message.composite_message_fields ();
+              m_hisCall = fields.tertiary_caller;
+              if (m_zdebug) log (QString ("Composite RR73 for me: setting target to %1").arg (m_hisCall));
+            }
+          
           // Z
           if (m_zdebug) log(QString("auto_sequence response branch: hiscall=%1 hisgrid=%2 addressed_to_me=%3 within_tolerance=%4 acceptable_73=%5 m_transmitting=%6 m_ntx=%7")
                             .arg(hiscall)
