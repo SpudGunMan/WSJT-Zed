@@ -364,6 +364,41 @@ void MessageServer::impl::parse_message (QHostAddress const& sender, port_type s
               }
               break;
 
+            case NetworkMessage::Configure:
+              {
+                // Unpack Configure message from external client
+                QByteArray mode;
+                quint32 frequency_tolerance {quint32_max};
+                QByteArray submode;
+                bool fast_mode {false};
+                quint32 tr_period {quint32_max};
+                quint32 rx_df {quint32_max};
+                QByteArray dx_call;
+                QByteArray dx_grid;
+                bool generate_messages {false};
+                bool auto_cq_enabled {false};
+                bool auto_call_enabled {false};
+
+                in >> mode >> frequency_tolerance >> submode >> fast_mode >> tr_period >> rx_df
+                   >> dx_call >> dx_grid >> generate_messages;
+
+                // Schema 3+ fields (AutoCQ/AutoCall)
+                if (in.schema () >= 3)
+                  {
+                    in >> auto_cq_enabled >> auto_call_enabled;
+                  }
+
+                if (check_status (in) != Fail)
+                  {
+                    Q_EMIT self_->remote_configure (client_key
+                                                    , QString::fromUtf8 (mode), frequency_tolerance
+                                                    , QString::fromUtf8 (submode), fast_mode, tr_period, rx_df
+                                                    , QString::fromUtf8 (dx_call), QString::fromUtf8 (dx_grid)
+                                                    , generate_messages, auto_cq_enabled, auto_call_enabled);
+                  }
+              }
+              break;
+
             default:
               // Ignore
               break;
@@ -466,6 +501,15 @@ void MessageServer::start (port_type port, QHostAddress const& multicast_group_a
               m_->join_multicast_group ();
             }
         }
+    }
+}
+
+void MessageServer::stop ()
+{
+  m_->leave_multicast_group ();
+  if (impl::UnconnectedState != m_->state ())
+    {
+      m_->close ();
     }
 }
 
