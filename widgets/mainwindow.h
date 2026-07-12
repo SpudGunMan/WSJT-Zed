@@ -370,10 +370,6 @@ private slots:
   void remote_configure (QString const& mode, quint32 frequency_tolerance, QString const& submode
                          , bool fast_mode, quint32 tr_period, quint32 rx_df, QString const& dx_call
                          , QString const& dx_grid, bool generate_messages, bool auto_cq_enabled, bool auto_call_enabled);
-  void on_udp_server_configure (MessageServer::ClientKey const&, QString const& mode, quint32 frequency_tolerance
-                                  , QString const& submode, bool fast_mode, quint32 tr_period, quint32 rx_df
-                                  , QString const& dx_call, QString const& dx_grid, bool generate_messages
-                                  , bool auto_cq_enabled, bool auto_call_enabled);  // Handle Configure from server
   void callSandP2(int nline);
   void refreshHoundQueueDisplay();
   void queueActiveWindowHound2(QString text);

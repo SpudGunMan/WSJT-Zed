@@ -117,7 +117,7 @@ public:
   Q_SIGNAL void decodes_cleared (ClientKey const&);
   Q_SIGNAL void logged_ADIF (ClientKey const&, QByteArray const& ADIF);
 
-  // Signal emitted when a Configure message is received from a client
+  // Signal emitted when a Configure message is received from a remote client
   Q_SIGNAL void remote_configure (ClientKey const&, QString const& mode, quint32 frequency_tolerance
                                   , QString const& submode, bool fast_mode, quint32 tr_period, quint32 rx_df
                                   , QString const& dx_call, QString const& dx_grid, bool generate_messages

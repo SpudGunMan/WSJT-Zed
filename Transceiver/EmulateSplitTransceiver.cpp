@@ -33,6 +33,11 @@ void EmulateSplitTransceiver::set (TransceiverState const& s, unsigned sequence_
   rx_frequency_ = s.frequency ();
   tx_frequency_ = s.tx_frequency ();
   split_ = s.split ();
+  // If we are in split mode and the PTT is active, we are busy with a TX/RX operation.
+  if (split_ && s.ptt ())
+    {
+      busy_rxtx_ = true;
+    }
 
   if (split_ && s.ptt ())
     {

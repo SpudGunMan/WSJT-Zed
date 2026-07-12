@@ -717,18 +717,20 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   connect (m_messageClient, &MessageClient::switch_configuration, m_multi_settings, &MultiSettings::select_configuration);
   connect (m_messageClient, &MessageClient::configure, this, &MainWindow::remote_configure);
 
-  // Set up MessageServer to receive Configure messages on port 2237
+  // Set up MessageServer to listen for incoming UDP messages on port 2237
+  // This allows remote clients to send Configure and other commands to WSJT-X
   m_udp_server = new MessageServer {this, QApplication::applicationName (), version ()};
+  connect (m_udp_server, &MessageServer::remote_configure, this, [this] (MessageServer::ClientKey const&, QString const& mode, quint32 frequency_tolerance, QString const& submode, bool fast_mode, quint32 tr_period, quint32 rx_df, QString const& dx_call, QString const& dx_grid, bool generate_messages, bool auto_cq_enabled, bool auto_call_enabled) {
+    this->remote_configure (mode, frequency_tolerance, submode, fast_mode, tr_period, rx_df, dx_call, dx_grid, generate_messages, auto_cq_enabled, auto_call_enabled);
+  });
   
-  // Only start server if accept_udp_requests is enabled
+  // Only start listening if accept_udp_requests is enabled
   if (m_config.accept_udp_requests ())
     {
       m_udp_server->start (m_config.udp_server_port ());
     }
   
-  connect (m_udp_server, &MessageServer::remote_configure, this, &MainWindow::on_udp_server_configure);
-  
-  // Handle accept_udp_requests changes
+  // Handle accept_udp_requests checkbox changes
   connect (&m_config, &Configuration::accept_udp_requests_changed, [this] (bool enable) {
     if (enable)
       {
@@ -6254,6 +6256,10 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
       if(SpecOp::FOX != m_specOp)
       {
           // Handle composite RR73 messages by setting target call to tertiary caller
+          if (m_zdebug) log (QString ("composite_rr73_for_me=%1 is_composite=%2 specOp=%3")
+                            .arg(composite_rr73_for_me)
+                            .arg(message.is_composite_message())
+                            .arg(static_cast<int>(m_specOp)));
           if (composite_rr73_for_me && message.is_composite_message ())
             {
               auto const& fields = message.composite_message_fields ();
@@ -13668,16 +13674,6 @@ void MainWindow::configActiveStations()
         m_ActiveStationsWidget->displayRecentStations(m_mode, "");
     }
   }
-}
-
-void MainWindow::on_udp_server_configure (MessageServer::ClientKey const&, QString const& mode, quint32 frequency_tolerance
-                                          , QString const& submode, bool fast_mode, quint32 tr_period, quint32 rx_df
-                                          , QString const& dx_call, QString const& dx_grid, bool generate_messages
-                                          , bool auto_cq_enabled, bool auto_call_enabled)
-{
-  // Forward Configure messages from UDP server to remote_configure handler
-  remote_configure (mode, frequency_tolerance, submode, fast_mode, tr_period, rx_df,
-                   dx_call, dx_grid, generate_messages, auto_cq_enabled, auto_call_enabled);
 }
 
 void MainWindow::remote_configure (QString const& mode, quint32 frequency_tolerance
