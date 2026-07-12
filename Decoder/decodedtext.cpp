@@ -69,9 +69,22 @@ DecodedText::DecodedText (QString const& the_string)
        if (message0_.contains (" RR73; "))
          {
            is_composite_ = true;
-           QRegularExpression composite_re {R"((?<primary_caller>[A-Z0-9/]+)\sRR73;\s(?<secondary_caller>[A-Z0-9/]+)\s<(?<tertiary_caller>[A-Z0-9/]+)>\s(?<report>[-+]\d+))"};
+           QRegularExpression composite_re {R"((?<primary_caller>[A-Za-z0-9/]+)\sRR73;\s(?<secondary_caller>[A-Za-z0-9/]+)\s<(?<tertiary_caller>[A-Za-z0-9/]+)>\s(?<report>[-+]\d+))"};
            auto match = composite_re.match (message0_);
-           if (match.hasMatch ())
+           // If strict format doesn't match, try relaxed format: "CALL1 RR73; CALL2 <CALL3> ..."
+           if (!match.hasMatch ())
+             {
+               QRegularExpression composite_re_relaxed {R"((?<primary_caller>[A-Za-z0-9/]+)\sRR73;\s(?<secondary_caller>[A-Za-z0-9/]+)\s<(?<tertiary_caller>[A-Za-z0-9/]+)>)"};
+               match = composite_re_relaxed.match (message0_);
+               if (match.hasMatch ())
+                 {
+                   composite_message_.primary_caller = match.captured ("primary_caller");
+                   composite_message_.secondary_caller = match.captured ("secondary_caller");
+                   composite_message_.tertiary_caller = match.captured ("tertiary_caller");
+                   composite_message_.report = ""; // No report in this format
+                 }
+             }
+           if (match.hasMatch ())))
              {
                composite_message_.primary_caller = match.captured ("primary_caller");
                composite_message_.secondary_caller = match.captured ("secondary_caller");
