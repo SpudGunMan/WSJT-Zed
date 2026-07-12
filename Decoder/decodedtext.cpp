@@ -76,20 +76,16 @@ DecodedText::DecodedText (QString const& the_string)
              {
                QRegularExpression composite_re_relaxed {R"((?<primary_caller>[A-Za-z0-9/]+)\sRR73;\s(?<secondary_caller>[A-Za-z0-9/]+)\s<(?<tertiary_caller>[A-Za-z0-9/]+)>)"};
                match = composite_re_relaxed.match (message0_);
-               if (match.hasMatch ())
-                 {
-                   composite_message_.primary_caller = match.captured ("primary_caller");
-                   composite_message_.secondary_caller = match.captured ("secondary_caller");
-                   composite_message_.tertiary_caller = match.captured ("tertiary_caller");
-                   composite_message_.report = ""; // No report in this format
-                 }
              }
-           if (match.hasMatch ())))
+           if (match.hasMatch ())
              {
                composite_message_.primary_caller = match.captured ("primary_caller");
                composite_message_.secondary_caller = match.captured ("secondary_caller");
                composite_message_.tertiary_caller = match.captured ("tertiary_caller");
-               composite_message_.report = match.captured ("report");
+               if (match.capturedTexts().contains("report"))
+                 composite_message_.report = match.captured ("report");
+               else
+                 composite_message_.report = "";
              }
          }
        
