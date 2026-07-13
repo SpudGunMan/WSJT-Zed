@@ -42,18 +42,31 @@ endif ()
 
 # If no FFTW3 root is explicitly provided, use reasonable defaults
 # for common Windows/MSYS2 environments.
-if (NOT DEFINED FFTW3_ROOT_DIR)
+if (NOT DEFINED FFTW3_ROOT_DIR OR FFTW3_ROOT_DIR STREQUAL "")
   if (MINGW)
     set (FFTW3_ROOT_DIR /mingw64)
   elseif (WIN32)
-    file (GLOB FFTW3_DIR_CANDIDATES
-      "C:\JTSDK64-Tools\tools\fftw\3.3.10"
-      "D:\JTSDK64-Tools\tools\fftw\3.3.10"
+    set (_fftw3_candidates
+      "C:/JTSDK64-Tools/tools/fftw/3.3.10"
+      "D:/JTSDK64-Tools/tools/fftw/3.3.10"
+      "C:/Tools/fftw-3.3.5-dll64"
+      "C:/Tools/fftw-3*"
+      "C:/fftw*"
+      "C:/Program Files/fftw*"
+      "C:/Program Files (x86)/fftw*"
     )
-    list (LENGTH FFTW3_DIR_CANDIDATES _fftw3_count)
-    if (_fftw3_count GREATER 0)
-      list (GET FFTW3_DIR_CANDIDATES 0 FFTW3_ROOT_DIR)
-    endif ()
+    foreach (_candidate IN LISTS _fftw3_candidates)
+      file (GLOB _found "${_candidate}")
+      foreach (_dir IN LISTS _found)
+        if (EXISTS "${_dir}/include/fftw3.h")
+          set (FFTW3_ROOT_DIR "${_dir}")
+          break ()
+        endif ()
+      endforeach ()
+      if (DEFINED FFTW3_ROOT_DIR AND NOT FFTW3_ROOT_DIR STREQUAL "")
+        break ()
+      endif ()
+    endforeach ()
   endif ()
 endif ()
 
