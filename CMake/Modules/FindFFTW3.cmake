@@ -40,10 +40,21 @@ if (MINGW)
   set (CMAKE_FIND_LIBRARY_SUFFIXES ".dll" ".dll.a" ".a" ".lib")
 endif ()
 
-# If building in an MSYS2/Mingw environment and no root is provided,
-# search the default MSYS2 MinGW64 prefix.
-if (NOT DEFINED FFTW3_ROOT_DIR AND MINGW)
-  set (FFTW3_ROOT_DIR /mingw64)
+# If no FFTW3 root is explicitly provided, use reasonable defaults
+# for common Windows/MSYS2 environments.
+if (NOT DEFINED FFTW3_ROOT_DIR)
+  if (MINGW)
+    set (FFTW3_ROOT_DIR /mingw64)
+  elseif (WIN32)
+    file (GLOB FFTW3_DIR_CANDIDATES
+      "C:\JTSDK64-Tools\tools\fftw\3.3.10"
+      "D:\JTSDK64-Tools\tools\fftw\3.3.10"
+    )
+    list (LENGTH FFTW3_DIR_CANDIDATES _fftw3_count)
+    if (_fftw3_count GREATER 0)
+      list (GET FFTW3_DIR_CANDIDATES 0 FFTW3_ROOT_DIR)
+    endif ()
+  endif ()
 endif ()
 
 # Use double precision by default.
