@@ -40,6 +40,12 @@ if (MINGW)
   set (CMAKE_FIND_LIBRARY_SUFFIXES ".dll" ".dll.a" ".a" ".lib")
 endif ()
 
+# If building in an MSYS2/Mingw environment and no root is provided,
+# search the default MSYS2 MinGW64 prefix.
+if (NOT DEFINED FFTW3_ROOT_DIR AND MINGW)
+  set (FFTW3_ROOT_DIR /mingw64)
+endif ()
+
 # Use double precision by default.
 if (FFTW3_FIND_COMPONENTS MATCHES "^$")
   set (_components double)
