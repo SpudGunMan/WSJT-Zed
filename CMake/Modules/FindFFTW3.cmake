@@ -40,56 +40,6 @@ if (MINGW)
   set (CMAKE_FIND_LIBRARY_SUFFIXES ".dll" ".dll.a" ".a" ".lib")
 endif ()
 
-# If no FFTW3 root is explicitly provided, use reasonable defaults
-# for common Windows/MSYS2 environments.
-if (NOT DEFINED FFTW3_ROOT_DIR OR FFTW3_ROOT_DIR STREQUAL "")
-  if (DEFINED ENV{FFTW3_ROOT_DIR})
-    set (FFTW3_ROOT_DIR $ENV{FFTW3_ROOT_DIR})
-  elseif (DEFINED ENV{FFTW3_ROOT})
-    set (FFTW3_ROOT_DIR $ENV{FFTW3_ROOT})
-  elseif (DEFINED ENV{FFTW3_HOME})
-    set (FFTW3_ROOT_DIR $ENV{FFTW3_HOME})
-  endif ()
-endif ()
-
-if (NOT DEFINED FFTW3_ROOT_DIR OR FFTW3_ROOT_DIR STREQUAL "")
-  if (MINGW)
-    set (FFTW3_ROOT_DIR /mingw64)
-  elseif (WIN32)
-    set (_fftw3_candidates
-      "C:/JTSDK64-Tools/tools/fftw/3.3.10"
-      "D:/JTSDK64-Tools/tools/fftw/3.3.10"
-      "C:/Tools/fftw-3.3.5-dll64"
-      "C:/Tools/fftw-3*"
-      "C:/fftw*"
-      "C:/Program Files/fftw*"
-      "C:/Program Files (x86)/fftw*"
-    )
-    foreach (_candidate IN LISTS _fftw3_candidates)
-      file (GLOB _found "${_candidate}")
-      foreach (_dir IN LISTS _found)
-        if (EXISTS "${_dir}/include/fftw3.h")
-          set (FFTW3_ROOT_DIR "${_dir}")
-          break ()
-        endif ()
-        if (EXISTS "${_dir}/lib64/fftw3.h")
-          set (FFTW3_ROOT_DIR "${_dir}")
-          break ()
-        endif ()
-      endforeach ()
-      if (DEFINED FFTW3_ROOT_DIR AND NOT FFTW3_ROOT_DIR STREQUAL "")
-        break ()
-      endif ()
-    endforeach ()
-  endif ()
-endif ()
-
-if (DEFINED FFTW3_ROOT_DIR AND NOT FFTW3_ROOT_DIR STREQUAL "")
-  message(STATUS "FindFFTW3: FFTW3_ROOT_DIR=${FFTW3_ROOT_DIR}")
-else ()
-  message(STATUS "FindFFTW3: FFTW3_ROOT_DIR not set")
-endif ()
-
 # Use double precision by default.
 if (FFTW3_FIND_COMPONENTS MATCHES "^$")
   set (_components double)
@@ -114,14 +64,14 @@ foreach (_comp ${_components})
   endif (_comp STREQUAL "single")
 endforeach (_comp ${_components})
 
-# If using threads, we need to link against threaded libraries as well.
-if (_use_threads)
+# If using threads, we need to link against threaded libraries as well - except on Windows.
+if (NOT WIN32 AND _use_threads)
   set (_thread_libs)
   foreach (_lib ${_libraries})
     list (APPEND _thread_libs ${_lib}_threads)
   endforeach (_lib ${_libraries})
   set (_libraries ${_thread_libs} ${_libraries})
-endif (_use_threads)
+endif (NOT WIN32 AND _use_threads)
 
 # Keep a list of variable names that we need to pass on to
 # find_package_handle_standard_args().
