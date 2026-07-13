@@ -6237,7 +6237,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
         && have_selected_dx
         // Selected DX station is in a directed exchange with someone else, not us.
       && directed_with_selected_dx
-      && !directed_to_me) {
+      && !directed_to_me && !composite_rr73_for_me) {
       // auto stop to avoid accidental QRM
         // Z
       if (m_zdebug) log(QString("auto_sequence stop branch: df=%1 stop_tolerance=%2 m_QSOProgress=%3 message_words[2]=%4 message_words[3]=%5 dxCall=%6")
@@ -6301,7 +6301,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
     } else if (ui->cbAutoSeq->isChecked()
                && message_words.at (2).contains (m_baseCall)
                && (ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked())
-               && !(have_selected_dx && directed_with_selected_dx && !directed_to_me)
+               && !(have_selected_dx && directed_with_selected_dx && !directed_to_me && !composite_rr73_for_me)
                && m_QSOProgress == CALLING
                && !terminal_signoff
                && (m_config.processTailenders() || m_lastCall == hiscall)
