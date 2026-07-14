@@ -520,7 +520,6 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   ui->decodes_splitter->setChildrenCollapsible(false);
   ui->decodes_splitter->setStretchFactor(0, 1);
   ui->decodes_splitter->setStretchFactor(1, 1);
-  ui->gridLayout->setRowStretch(3, 2);
 
   ui->cb_autoModeSwitch->setContextMenuPolicy (Qt::CustomContextMenu);
   update_auto_mode_switch_widget ();
@@ -739,6 +738,14 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
     else
       {
         m_udp_server->stop ();
+      }
+  });
+
+  // Handle UDP server port changes
+  connect (&m_config, &Configuration::udp_server_port_changed, [this] (Configuration::port_type port) {
+    if (m_config.accept_udp_requests ())
+      {
+        m_udp_server->start (port);
       }
   });
 
@@ -2060,6 +2067,8 @@ void MainWindow::readSettings()
   ui->actionAuto_Clear_Avg->setChecked (m_settings->value ("AutoClearAvg", false).toBool());
   auto const splitter_state = m_settings->value("SplitterState").toByteArray();
   if (splitter_state.isEmpty() || !ui->decodes_splitter->restoreState(splitter_state)) {
+    // Note: width() may not reflect final layout if called during initialization,
+    // but setChildrenCollapsible(false) mitigates the worst case.
     auto const half_width = qMax(1, ui->decodes_splitter->width() / 2);
     ui->decodes_splitter->setSizes({half_width, half_width});
   }
@@ -7444,9 +7453,14 @@ void MainWindow::on_txrb2_toggled (bool status)
 void MainWindow::on_txrb2_doubleClicked ()
 {
   // Select TX4 with RR73
-  m_send_RR73 = true;
-  QTimer::singleShot (100, ui->txrb4, SLOT (click ()));
-  QTimer::singleShot (150, this, [this] () { genStdMsgs (m_rpt); });
+  // RR73 only allowed if not a type 2 compound callsign
+  auto const& my_callsign = m_config.my_callsign ();
+  auto is_compound = my_callsign != m_baseCall;
+  if(!((is_compound && !shortList (my_callsign)))) {
+    m_send_RR73 = true;
+  }
+  QTimer::singleShot (0, ui->txrb4, SLOT (click ()));
+  QTimer::singleShot (0, this, [this] () { genStdMsgs (m_rpt); });
 }
 
 void MainWindow::on_txrb3_toggled(bool status)
@@ -13696,17 +13710,13 @@ void MainWindow::remote_configure (QString const& mode, quint32 frequency_tolera
                                    , QString const& dx_call, QString const& dx_grid, bool generate_messages
                                    , bool auto_cq_enabled, bool auto_call_enabled)
 {
-  qDebug() << "remote_configure called with mode=" << mode << "auto_cq=" << auto_cq_enabled << "auto_call=" << auto_call_enabled;
-  
   // Handle AutoCQ/AutoCall mode changes
   if (ui->cbAutoCQ->isChecked () != auto_cq_enabled)
     {
-      qDebug() << "Setting AutoCQ to" << auto_cq_enabled;
       ui->cbAutoCQ->setChecked (auto_cq_enabled);
     }
   if (ui->cbAutoCall->isChecked () != auto_call_enabled)
     {
-      qDebug() << "Setting AutoCall to" << auto_call_enabled;
       ui->cbAutoCall->setChecked (auto_call_enabled);
     }
 
@@ -15365,11 +15375,22 @@ void MainWindow::switchBand(int row) {
 
 void MainWindow::ZMessage ()
 {
-
-    QString message = "Please visit our <a href='https://groups.io/g/WSJT-Z/topics'>groups.io</a> forum if you need help with Z! <br /><br />"
-                        "Latest versions can be downloaded from <a href='https://sourceforge.net/projects/wsjt-z/'>sourceforge</a> <br /><br />"
-                        "<a href='https://sourceforge.net/projects/wsjt-z/files/Documentation/WSJT-Z%20User%20Manual.pdf/download'>WSJT-Z Documentation</a> <br /><br /><br /><br />"
-                        "<b>Donate to WSJT-Z charity event <a href='https://groups.io/g/WSJT-Z/topic/wsjt_z_charity_event_radio/86127241'>HERE</a></b> <br /><br />";
+    QString rev = revision();
+    QString versionZ = QStringLiteral(VERSION_Z);
+    QString revText = QString("Version %1 - %2").arg(versionZ, rev);
+    
+    QString message = QString(
+        "<h2>WSJT-Z</h2>"
+        "<p>%1</p>"
+        "<p><b>Resources:</b></p>"
+        "<ul>"
+        "<li><a href='https://groups.io/g/WSJT-Z/topics'>WSJT-Z on groups.io for support.</a></li>"
+        "<li><a href='https://github.com/sq9fve/wsjt-z'>Download WSJT-Z on GitHub.</a></li>"
+        "<li><a href='https://github.com/sq9fve/wsjt-z/tree/master/docs'>WSJT-Z Documentation on GitHub.</a></li>"
+        "</ul>"
+        "<p><b><a href='https://groups.io/g/WSJT-Z/topic/wsjt_z_charity_event_radio/86127241'>Donate to WSJT-Z Charity Event</a></b></p>"
+        "<p><i>Special thanks to all our beta testers for their contributions and feedback.</i></p>"
+    ).arg(revText);
 
     MessageBox::information_message(this, message);
 }

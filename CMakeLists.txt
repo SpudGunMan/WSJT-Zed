@@ -76,7 +76,7 @@ set (PROJECT_MANUAL_DIRECTORY_URL https://groups.io/g/WSJT-Z)
 set (PROJECT_SAMPLES_URL https://sourceforge.net/projects/wsjt/files/)
 #set (PROJECT_SAMPLES_UPLOAD_DEST frs.sourceforge.net:/home/frs/project/wsjt/)
 # WSJT-Z mod version suffix shown in UI and package metadata.
-set (VERSION_Z "2.0.17b67-Franco")
+set (VERSION_Z "2.0.17b68")
 message (STATUS "******************************************************")
 message (STATUS "Building ${PROJECT_BUNDLE_NAME} ${VERSION_Z} (base WSJT-X ${PROJECT_VERSION}) for ${CMAKE_SYSTEM_NAME}-${PROJECT_ARCHITECTURE}")
 message (STATUS "******************************************************")
@@ -256,6 +256,7 @@ set (wsjt_qt_CXXSRCS
   widgets/CheckableItemComboBox.cpp
   widgets/BandComboBox.cpp
   otpgenerator.cpp
+  UDPExamples/MessageServer.cpp
   )
 
 set (wsjt_qtmm_CXXSRCS
@@ -791,7 +792,6 @@ set (UDP_library_CXXSRCS
   Radio.cpp
   RadioMetaType.cpp
   Network/NetworkMessage.cpp
-  UDPExamples/MessageServer.cpp
   )
 
 set (UDP_library_HEADERS
@@ -1634,7 +1634,7 @@ else ()
       )
   endif ()
 endif ()
-target_link_libraries (wsjtx Qt5::SerialPort wsjt_cxx wsjt_qt wsjt_qtmm ${FFTW3_LIBRARIES} ${LIBM_LIBRARIES} wsjtx_udp-static)
+target_link_libraries (wsjtx Qt5::SerialPort wsjt_cxx wsjt_qt wsjt_qtmm ${FFTW3_LIBRARIES} ${LIBM_LIBRARIES})
 
 # make a library for WSJT-X UDP servers
 # add_library (wsjtx_udp SHARED ${UDP_library_CXXSRCS})
@@ -1664,7 +1664,7 @@ generate_version_info (udp_daemon_VERSION_RESOURCES
   FILE_DESCRIPTION "Example WSJT-X UDP Message Protocol daemon"
   )
 add_executable (udp_daemon UDPExamples/UDPDaemon.cpp ${udp_daemon_VERSION_RESOURCES})
-target_link_libraries (udp_daemon wsjtx_udp-static)
+target_link_libraries (udp_daemon wsjt_qt wsjtx_udp-static)
 
 generate_version_info (wsjtx_app_version_VERSION_RESOURCES
   NAME wsjtx_app_version
@@ -1692,7 +1692,7 @@ add_executable (message_aggregator
   ${message_aggregator_RESOURCES_RCC}
   ${message_aggregator_VERSION_RESOURCES}
   )
-target_link_libraries (message_aggregator wsjt_qt Qt5::Widgets wsjtx_udp-static)
+target_link_libraries (message_aggregator wsjt_qt Qt5::Widgets)
 
 if (WSJT_CREATE_WINMAIN)
   set_target_properties (message_aggregator PROPERTIES WIN32_EXECUTABLE ON)
