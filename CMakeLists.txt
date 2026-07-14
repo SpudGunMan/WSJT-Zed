@@ -1664,7 +1664,7 @@ generate_version_info (udp_daemon_VERSION_RESOURCES
   FILE_DESCRIPTION "Example WSJT-X UDP Message Protocol daemon"
   )
 add_executable (udp_daemon UDPExamples/UDPDaemon.cpp ${udp_daemon_VERSION_RESOURCES})
-target_link_libraries (udp_daemon wsjt_qt wsjtx_udp-static)
+target_link_libraries (udp_daemon wsjt_qt)
 
 generate_version_info (wsjtx_app_version_VERSION_RESOURCES
   NAME wsjtx_app_version
