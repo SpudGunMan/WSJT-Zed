@@ -78,7 +78,6 @@ public:
   QString revision_;
   QHostAddress multicast_group_address_;
   QSet<QString> network_interfaces_;
-  QHostAddress bind_address_;
   static BindMode constexpr bind_mode_ = ShareAddress | ReuseAddressHint;
   struct Client
   {
@@ -469,14 +468,12 @@ MessageServer::MessageServer (QObject * parent, QString const& version, QString 
 }
 
 void MessageServer::start (port_type port, QHostAddress const& multicast_group_address
-                           , QSet<QString> const& network_interface_names
-                           , QHostAddress const& bind_address)
+                           , QSet<QString> const& network_interface_names)
 {
   // qDebug () << "MessageServer::start port:" << port << "multicast addr:" << multicast_group_address.toString () << "network interfaces:" << network_interface_names;
   if (port != m_->localPort ()
       || multicast_group_address != m_->multicast_group_address_
-      || network_interface_names != m_->network_interfaces_
-      || bind_address != m_->bind_address_)
+      || network_interface_names != m_->network_interfaces_)
     {
       m_->leave_multicast_group ();
       if (impl::UnconnectedState != m_->state ())
@@ -495,15 +492,8 @@ void MessageServer::start (port_type port, QHostAddress const& multicast_group_a
         {
           m_->multicast_group_address_ = multicast_group_address;
           m_->network_interfaces_ = network_interface_names;
-          m_->bind_address_ = bind_address;
-          // A caller-supplied bind_address (e.g. QHostAddress::LocalHost)
-          // takes precedence and restricts the listener to that address;
-          // this is used by the WSJT-Z control server so it is not exposed
-          // on all network interfaces. Multicast requires an "any" bind.
-          QHostAddress local_addr {!bind_address.isNull () && !is_multicast_address (multicast_group_address)
-                                   ? bind_address
-                                   : (is_multicast_address (multicast_group_address)
-                                      && impl::IPv4Protocol == multicast_group_address.protocol () ? QHostAddress::AnyIPv4 : QHostAddress::Any)};
+          QHostAddress local_addr {is_multicast_address (multicast_group_address)
+                                   && impl::IPv4Protocol == multicast_group_address.protocol () ? QHostAddress::AnyIPv4 : QHostAddress::Any};
           if (port && m_->bind (local_addr, port, m_->bind_mode_))
             {
               m_->join_multicast_group ();
