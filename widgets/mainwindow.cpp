@@ -4727,8 +4727,6 @@ void MainWindow::decode()                                       //decode()
   if (!ui->actionInclude_correlation->isVisible ()) depth &= ~32;
   if (!ui->actionEnable_AP_DXcall->isVisible ()) depth &= ~64;
   if (!ui->actionAuto_Clear_Avg->isVisible()) depth &= ~128;
-  // Zero-initialize all params to ensure proper alignment and default values
-  ::memset(&dec_data.params, 0, sizeof(dec_data.params));
   dec_data.params.ndepth=depth;
   // ===== JTDX/3.0 ported FT8 decoder params (must mirror lib/jt9com.f90 params_block) =====
   // Wsjtz lacks UI for most JTDX-specific knobs; using sensible defaults from wsjtx-orig.
@@ -4771,9 +4769,9 @@ void MainWindow::decode()                                       //decode()
   dec_data.params.nsdecatt = 1;
   dec_data.params.fmaskact = true;
   dec_data.params.lwidedxcsearch = m_FT8WideDxCallSearch;
-  dec_data.params.ldx_mode = m_dx_mode;
   dec_data.params.lenabledxcsearch = false;
   dec_data.params.nagainfil = false;
+  dec_data.params.ldx_mode = m_dx_mode;  // DX Mode: true=integer-bin, false=parabolic
   // mybcall / hisbcall: derive from mycall/hiscall (base callsign before /portable)
   ::memcpy(dec_data.params.mybcall, (m_config.my_callsign() + "            ").toLatin1(), 12);
   ::memcpy(dec_data.params.hisbcall, (m_hisCall + "            ").toLatin1(), 12);
