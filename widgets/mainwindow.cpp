@@ -10522,7 +10522,6 @@ void MainWindow::on_actionAuto_Clear_Avg_toggled (bool checked)
 void MainWindow::on_actionDX_Mode_toggled (bool checked)
 {
   m_dx_mode = checked;
-  statusChanged();
 }
 
 void MainWindow::on_actionErase_ALL_TXT_triggered()          //Erase ALL.TXT
