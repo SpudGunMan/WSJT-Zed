@@ -4727,6 +4727,8 @@ void MainWindow::decode()                                       //decode()
   if (!ui->actionInclude_correlation->isVisible ()) depth &= ~32;
   if (!ui->actionEnable_AP_DXcall->isVisible ()) depth &= ~64;
   if (!ui->actionAuto_Clear_Avg->isVisible()) depth &= ~128;
+  // Zero-initialize all params to ensure proper alignment and default values
+  ::memset(&dec_data.params, 0, sizeof(dec_data.params));
   dec_data.params.ndepth=depth;
   // ===== JTDX/3.0 ported FT8 decoder params (must mirror lib/jt9com.f90 params_block) =====
   // Wsjtz lacks UI for most JTDX-specific knobs; using sensible defaults from wsjtx-orig.
@@ -10522,6 +10524,7 @@ void MainWindow::on_actionAuto_Clear_Avg_toggled (bool checked)
 void MainWindow::on_actionDX_Mode_toggled (bool checked)
 {
   m_dx_mode = checked;
+  statusChanged();
 }
 
 void MainWindow::on_actionErase_ALL_TXT_triggered()          //Erase ALL.TXT
