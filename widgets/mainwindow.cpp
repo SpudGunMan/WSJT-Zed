@@ -527,6 +527,9 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   setUnifiedTitleAndToolBarOnMac (true);
   createStatusBar();
   add_child_to_event_filter (this);
+  // Reuse on_btn_addToIgnore_clicked for ignoreButton
+  connect(ui->ignoreButton, &QPushButton::clicked,
+          this, &MainWindow::on_btn_addToIgnore_clicked);
   // Invalidate cached parsed-filter lists when the user edits any filter pane.
   // callsignFiltered() reuses the cache instead of re-parsing per decode.
   connect(ui->pte_IgnoredStations, &QPlainTextEdit::textChanged,
@@ -537,9 +540,8 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
           this, &MainWindow::invalidateFilterCache);
   // Cache WSJT-Z debug flag so log() and hot-path call sites can gate without a widget lookup.
   m_zdebug = ui->actionWSJT_Z_Debug->isChecked();
-  m_logDlg->setDebugMode(m_zdebug);  // Pass debug flag to LogQSO
   connect(ui->actionWSJT_Z_Debug, &QAction::toggled,
-          this, [this](bool b){ m_zdebug = b; if(m_logDlg) m_logDlg->setDebugMode(b); });
+          this, [this](bool b){ m_zdebug = b; });
   ui->dxGridEntry->setValidator (new MaidenheadLocatorValidator {this});
   ui->dxCallEntry->setValidator (new CallsignValidator {this});
   ui->sbTR->values ({5, 10, 15, 30, 60, 120, 300, 900, 1800});
@@ -648,7 +650,6 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
 
   // setup the log QSO dialog
   connect (m_logDlg.data (), &LogQSO::acceptQSO, this, &MainWindow::acceptQSO);
-  connect (m_logDlg.data (), &LogQSO::debugMessage, this, [this](QString const& msg) { log(msg); });
   connect (this, &MainWindow::finished, m_logDlg.data (), &LogQSO::close);
 
   // hook up the log book
@@ -6241,12 +6242,16 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                     .arg(composite_rr73_detected)
                     .arg(raw_words.size())
                     .arg(raw_words.size() > 1 ? raw_words.at(1) : "N/A"));
-  // Check if we're either primary or secondary caller in composite RR73
-  bool composite_rr73_for_me = composite_rr73_detected
-    && ((token_matches_call (raw_words.value (0), m_config.my_callsign ())
-         || token_matches_call (raw_words.value (0), m_baseCall))
-        || (raw_words.size() > 2 && (token_matches_call (raw_words.value (2), m_config.my_callsign ())
-                                      || token_matches_call (raw_words.value (2), m_baseCall))));
+  // Check if we're the tertiary caller (the remote) in composite RR73
+  // Format: PRIMARY RR73; SECONDARY <TERTIARY> REPORT
+  // Only the tertiary caller should respond to the composite RR73
+  bool composite_rr73_for_me = false;
+  if (composite_rr73_detected && message.is_composite_message())
+    {
+      auto const& fields = message.composite_message_fields();
+      composite_rr73_for_me = token_matches_call(fields.tertiary_caller, m_config.my_callsign())
+                              || token_matches_call(fields.tertiary_caller, m_baseCall);
+    }
   if (m_zdebug && composite_rr73_detected) 
     log(QString("composite_rr73_for_me=%1 (primary[0]=%2, secondary[2]=%3)")
         .arg(composite_rr73_for_me)
@@ -7859,9 +7864,12 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
   QStringList w=message.clean_string ().mid(22).remove("<").remove(">").split(" ",SkipEmptyParts);
   auto const& raw_words = message.clean_string().split(" ", SkipEmptyParts);
   bool const composite_rr73_detected = composite_rr73(raw_words);
-  bool const composite_rr73_for_me = composite_rr73_detected
-    && (token_matches_call(raw_words.value(0), m_config.my_callsign())
-        || token_matches_call(raw_words.value(0), m_baseCall));
+  // Check if we're the tertiary caller (the remote) in composite RR73
+  // Format: PRIMARY RR73; SECONDARY <TERTIARY> REPORT
+  // Only the tertiary caller should respond to the composite RR73
+  bool const composite_rr73_for_me = composite_rr73_detected && message.is_composite_message()
+    && (token_matches_call(message.composite_message_fields().tertiary_caller, m_config.my_callsign())
+        || token_matches_call(message.composite_message_fields().tertiary_caller, m_baseCall));
 
   // Z
   dxLookup(hiscall, hisgrid);
@@ -9238,13 +9246,9 @@ void MainWindow::on_logQSOButton_clicked()                 //Log QSO button
           int n=m_rptSent.toInt();
           m_rptSent = m_rptSent.asprintf("%+2.2d",n);
       }
-      if (m_zdebug) log("[logQSO] calling initLogQSO for " + m_hisCall);
       m_logDlg->initLogQSO (m_hisCall, grid, m_mode, m_rptSent , m_rptRcvd,
                             m_dateTimeQSOOn, dateTimeQSOOff, m_freqNominal +
-                           ui->TxFreqSpinBox->value(), m_noSuffix, m_xSent, m_xRcvd,
-                           ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked());
-      if (m_zdebug) log("[logQSO] after initLogQSO AutoCQ=" + QString::number(ui->cbAutoCQ->isChecked())
-               + " AutoCall=" + QString::number(ui->cbAutoCall->isChecked()) + " isHidden=" + QString::number(m_logDlg->isHidden()));
+                           ui->TxFreqSpinBox->value(), m_noSuffix, m_xSent, m_xRcvd);
 
          if (m_config.rxTotxFreq()) on_pbT2R_clicked();
          if (m_zdebug) log("Updating m_lastCall from " + m_lastCall + " to " + m_hisCall);
@@ -9255,14 +9259,7 @@ void MainWindow::on_logQSOButton_clicked()                 //Log QSO button
              // (NA_VHF/EU_VHF/etc.). Calling accept() again double-runs the QSO
              // pipeline (CabrilloLog::add_QSO + acceptQSO signal) and crashes
              // intermittently. Hidden dialog == already auto-accepted.
-             if (m_zdebug) log("[logQSO] isHidden check: m_logDlg=" + QString(m_logDlg ? "valid" : "null") 
-                      + " isHidden=" + QString(!m_logDlg ? "N/A" : QString::number(m_logDlg->isHidden())));
-             if (m_logDlg && !m_logDlg->isHidden()) {
-                 if (m_zdebug) log("[logQSO] Dialog not hidden, calling accept() again");
-                 m_logDlg->accept();
-             } else {
-                 if (m_zdebug) log("[logQSO] Dialog is hidden or null, NOT calling accept() again");
-             }
+             if (m_logDlg && !m_logDlg->isHidden()) m_logDlg->accept();
              if (ui->cbAutoCall->isChecked()) auto_tx_mode (false);
              resetAutoSwitch();
          }
@@ -14107,6 +14104,13 @@ void MainWindow::on_btn_addToIgnore_clicked( ) {
       {
         ui->pte_IgnoredStations->appendPlainText(candidate);
       }
+    
+    // Clear tx1-5 messages
+    ui->tx1->clear();
+    ui->tx2->clear();
+    ui->tx3->clear();
+    ui->tx4->clear();
+    ui->tx5->clear();
 }
 
 void MainWindow::on_btn_clearIgnore_clicked( ) {
