@@ -59,6 +59,7 @@
 #include <QSqlError>
 #include "unfilteredview.h"
 #include "pskreporterwidget.h"
+#include "DXStationMap.h"
 
 #include "helper_functions.h"
 #include "revision_utils.hpp"
@@ -571,6 +572,14 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
     m_pskReporterView->setFont(m_config.decoded_text_font());
     m_pskReporterView->hide();
   }
+
+  // Initialize DXStationMap as a popup window
+  m_dxStationMap.reset(new DXStationMap {nullptr});
+  connect(this, &MainWindow::finished, m_dxStationMap.data(), &QWidget::close);
+  m_dxStationMap->setMyCall(m_config.my_callsign());
+  m_dxStationMap->setHomeGrid(m_config.my_grid());
+  m_dxStationMap->setDistanceInMiles(m_config.miles());
+  m_dxStationMap->hide();
 
   m_optimizingProgress.setWindowModality (Qt::WindowModal);
   m_optimizingProgress.setAutoReset (false);
@@ -2642,6 +2651,33 @@ void MainWindow::fastSink(qint64 frames)
            m_logBook, m_currentBand, m_config.ppfx ());
       }
     }
+    
+    // Plot on DXStationMap if calling ME
+    if (m_dxStationMap) {
+      QString myCall = m_config.my_callsign();
+      if (!myCall.isEmpty()) {
+        auto for_me = decodedtext.string().contains(" " + myCall + " ") or
+                      decodedtext.string().contains(" " + myCall) or
+                      decodedtext.string().contains(myCall + " ") or
+                      decodedtext.string().contains(" <" + myCall + "> ");
+        if (for_me) {
+          QString dxCall, dxGrid;
+          decodedtext.deCallAndGrid(dxCall, dxGrid);
+          if (!dxCall.isEmpty() && !dxGrid.isEmpty()) {
+            PlottedStation s;
+            s.call = dxCall;
+            s.grid = dxGrid.toUpper().left(4);
+            s.snr = decodedtext.snr();
+            s.freqHz = decodedtext.frequencyOffset();
+            s.forMe = true;
+            s.isCQ = false;
+            s.period = 0;
+            m_dxStationMap->addStation(s);
+          }
+        }
+      }
+    }
+    
     m_bDecoded=true;
     auto_sequence (decodedtext, ui->sbFtol->value (), std::numeric_limits<unsigned>::max ());
     postDecode (true, decodedtext.string ());
@@ -6079,6 +6115,29 @@ void MainWindow::readFromStdout()                             //readFromStdout
         if(!m_bBestSPArmed or (m_mode!="FT4" and m_mode!="FT2")) {
           ui->decodedTextBrowser2->displayDecodedText (decodedtext0, my_call, m_mode, dxcc,
                 m_logBook, m_currentBand, m_config.ppfx (), false, false, 0.0, bDisplayPoints, m_points, false, false, "", "", isFiltered);
+          
+          // Plot on DXStationMap if calling ME
+          if (m_dxStationMap) {
+            auto for_me = decodedtext0.string().contains(" " + my_call + " ") or
+                          decodedtext0.string().contains(" " + my_call) or
+                          decodedtext0.string().contains(my_call + " ") or
+                          decodedtext0.string().contains(" <" + my_call + "> ");
+            if (for_me) {
+              QString dxCall, dxGrid;
+              decodedtext0.deCallAndGrid(dxCall, dxGrid);
+              if (!dxCall.isEmpty() && !dxGrid.isEmpty()) {
+                PlottedStation s;
+                s.call = dxCall;
+                s.grid = dxGrid.toUpper().left(4);
+                s.snr = decodedtext0.snr();
+                s.freqHz = decodedtext0.frequencyOffset();
+                s.forMe = true;
+                s.isCQ = false;
+                s.period = 0;
+                m_dxStationMap->addStation(s);
+              }
+            }
+          }
         }
         m_QSOText = decodedtext.string ().trimmed ();
       }
@@ -6242,15 +6301,19 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                     .arg(composite_rr73_detected)
                     .arg(raw_words.size())
                     .arg(raw_words.size() > 1 ? raw_words.at(1) : "N/A"));
-  // Check if we're the tertiary caller (the remote) in composite RR73
+  // Check if we're in composite RR73
   // Format: PRIMARY RR73; SECONDARY <TERTIARY> REPORT
-  // Only the tertiary caller should respond to the composite RR73
+  // Process if we're PRIMARY (receiving RR73) or SECONDARY (being informed we're next)
   bool composite_rr73_for_me = false;
   if (composite_rr73_detected && message.is_composite_message())
     {
       auto const& fields = message.composite_message_fields();
-      composite_rr73_for_me = token_matches_call(fields.tertiary_caller, m_config.my_callsign())
-                              || token_matches_call(fields.tertiary_caller, m_baseCall);
+      // PRIMARY: we're receiving the RR73 from tertiary
+      // SECONDARY: we're being informed we're next
+      composite_rr73_for_me = token_matches_call(fields.primary_caller, m_config.my_callsign())
+                              || token_matches_call(fields.primary_caller, m_baseCall)
+                              || token_matches_call(fields.secondary_caller, m_config.my_callsign())
+                              || token_matches_call(fields.secondary_caller, m_baseCall);
     }
   if (m_zdebug && composite_rr73_detected) 
     log(QString("composite_rr73_for_me=%1 (primary[0]=%2, secondary[2]=%3)")
@@ -6326,6 +6389,25 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
       return;
     }
 
+    // Handle composite RR73 BEFORE auto gate so it processes regardless of m_auto status
+    if(SpecOp::FOX != m_specOp && composite_rr73_for_me && message.is_composite_message())
+    {
+      auto const& fields = message.composite_message_fields ();
+      bool const is_secondary = token_matches_call(fields.secondary_caller, m_config.my_callsign())
+                                || token_matches_call(fields.secondary_caller, m_baseCall);
+      
+      if (is_secondary)
+        {
+          // We're being informed we're next: save context and skip processing
+          m_hisCall = fields.tertiary_caller;
+          m_lastCall = fields.primary_caller;
+          m_QSOProgress = REPLYING;
+          if (m_zdebug) log (QString ("auto_sequence: Composite RR73 SECONDARY, we're next after %1 to work %2").arg (fields.primary_caller).arg(m_hisCall));
+          return;
+        }
+      // Note: PRIMARY composite RR73 falls through to normal processing
+    }
+
     // Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
     bool const auto_qrm_guard_state = m_QSOProgress == CALLING
                       || m_QSOProgress == REPLYING
@@ -6373,7 +6455,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                            || message_words.at (2).contains (m_baseCall))))) {
       if(SpecOp::FOX != m_specOp)
       {
-          // Handle composite RR73 messages by setting target call to tertiary caller
+          // Handle composite RR73 messages
           if (m_zdebug) log (QString ("composite_rr73_for_me=%1 is_composite=%2 specOp=%3")
                             .arg(composite_rr73_for_me)
                             .arg(message.is_composite_message())
@@ -6381,23 +6463,19 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
           if (composite_rr73_for_me && message.is_composite_message ())
             {
               auto const& fields = message.composite_message_fields ();
-              // Always target the tertiary regardless of whether we're primary or secondary
-              m_hisCall = fields.tertiary_caller;
-              if (m_zdebug) log (QString ("Composite RR73 for me: setting target to %1").arg (m_hisCall));
+              bool const is_secondary = token_matches_call(fields.secondary_caller, m_config.my_callsign())
+                                        || token_matches_call(fields.secondary_caller, m_baseCall);
               
-              // For composite RR73, advance state machine to SIGNOFF to mark QSO complete
-              // This prevents further auto-transmissions for this QSO
-              m_ntx = 5;
-              ui->txrb5->setChecked(true);
-              m_QSOProgress = SIGNOFF;
-              m_bTUmsg = false;
-              if (m_config.prompt_to_log() || m_config.autoLog()) {
-                logQSOTimer.start(0);
-              }
-              else {
-                cease_auto_Tx_after_QSO ();
-              }
-              return;  // Don't process through normal state machine
+              if (is_secondary)
+                {
+                  // We're being informed we're next: save the tertiary as our next call
+                  m_hisCall = fields.tertiary_caller;
+                  m_lastCall = fields.primary_caller;
+                  m_QSOProgress = REPLYING;  // Position state machine for next message from tertiary
+                  if (m_zdebug) log (QString ("Composite RR73 SECONDARY (auto_sequence): we're next after %1 to work %2, m_QSOProgress=%3").arg (fields.primary_caller).arg(m_hisCall).arg(m_QSOProgress));
+                  return;  // Skip further processing for now
+                }
+              // Note: PRIMARY composite RR73 falls through to normal processMessage handling for proper transmission
             }
           
           // Z
@@ -7863,13 +7941,37 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
 
   QStringList w=message.clean_string ().mid(22).remove("<").remove(">").split(" ",SkipEmptyParts);
   auto const& raw_words = message.clean_string().split(" ", SkipEmptyParts);
-  bool const composite_rr73_detected = composite_rr73(raw_words);
-  // Check if we're the tertiary caller (the remote) in composite RR73
-  // Format: PRIMARY RR73; SECONDARY <TERTIARY> REPORT
-  // Only the tertiary caller should respond to the composite RR73
-  bool const composite_rr73_for_me = composite_rr73_detected && message.is_composite_message()
-    && (token_matches_call(message.composite_message_fields().tertiary_caller, m_config.my_callsign())
-        || token_matches_call(message.composite_message_fields().tertiary_caller, m_baseCall));
+  // Handle composite RR73 FIRST before any state machine logic
+  if (message.is_composite_message()) {
+    auto const& fields = message.composite_message_fields ();
+    bool const is_primary = token_matches_call(fields.primary_caller, m_config.my_callsign())
+                            || token_matches_call(fields.primary_caller, m_baseCall);
+    bool const is_secondary = token_matches_call(fields.secondary_caller, m_config.my_callsign())
+                              || token_matches_call(fields.secondary_caller, m_baseCall);
+    
+    if (m_zdebug) log(QString("processMessage: composite handler executing - is_primary=%1 is_secondary=%2").arg(is_primary).arg(is_secondary));
+    
+    if (is_primary) {
+      // We're receiving the RR73: log and send acknowledgment
+      if (m_zdebug) log (QString ("processMessage: Composite RR73 PRIMARY from %1").arg (fields.tertiary_caller));
+      m_hisCall = fields.tertiary_caller;
+      m_QSOProgress = SIGNOFF;
+      m_ntx=6;
+      ui->txrb6->setChecked(true);
+      if (m_zdebug) log (QString ("processMessage: Before log - m_hisCall=%1 m_QSOProgress=%2").arg(m_hisCall).arg(m_QSOProgress));
+      cease_auto_Tx_after_QSO ();
+      on_logQSOButton_clicked();
+      return;
+    }
+    else if (is_secondary) {
+      // We're being informed we're next: save the tertiary as our next call
+      m_hisCall = fields.tertiary_caller;
+      m_lastCall = fields.primary_caller;
+      m_QSOProgress = REPLYING;
+      if (m_zdebug) log (QString ("processMessage: Composite RR73 SECONDARY, we're next after %1 to work %2").arg (fields.primary_caller).arg(m_hisCall));
+      return;
+    }
+  }
 
   // Z
   dxLookup(hiscall, hisgrid);
@@ -8198,19 +8300,6 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
           }
       }
     }
-    else if (composite_rr73_for_me
-             || (5 == message_words.size ()
-                 && m_baseCall == message_words.at (1))) {
-      // dual Fox style message, possibly from MSHV
-      if (m_config.prompt_to_log() || m_config.autoLog()) {
-        logQSOTimer.start(0);
-      }
-      else {
-        cease_auto_Tx_after_QSO ();
-      }
-      m_ntx=6;
-      ui->txrb6->setChecked(true);
-    }
     else if (m_QSOProgress >= ROGERS
              && message_words.size () > 3 && message_words.at (2).contains (m_baseCall)
              && message_words.at (3) == "73") {
@@ -8296,6 +8385,32 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
     if (!s2.contains(m_baseCall) or m_mode=="MSK144") {  // Taken care of elsewhere if for_us and slow mode
       ui->decodedTextBrowser2->displayDecodedText (message, m_config.my_callsign (), m_mode, m_config.DXCC (),
       m_logBook, m_currentBand, m_config.ppfx ());
+      
+      // Plot on DXStationMap if calling ME
+      if (m_dxStationMap) {
+        QString myCall = m_config.my_callsign();
+        if (!myCall.isEmpty()) {
+          auto for_me = message.string().contains(" " + myCall + " ") or
+                        message.string().contains(" " + myCall) or
+                        message.string().contains(myCall + " ") or
+                        message.string().contains(" <" + myCall + "> ");
+          if (for_me) {
+            QString dxCall, dxGrid;
+            message.deCallAndGrid(dxCall, dxGrid);
+            if (!dxCall.isEmpty() && !dxGrid.isEmpty()) {
+              PlottedStation s;
+              s.call = dxCall;
+              s.grid = dxGrid.toUpper().left(4);
+              s.snr = message.snr();
+              s.freqHz = message.frequencyOffset();
+              s.forMe = true;
+              s.isCQ = false;
+              s.period = 0;
+              m_dxStationMap->addStation(s);
+            }
+          }
+        }
+      }
     }
     m_QSOText = s2;
   }
@@ -9180,13 +9295,14 @@ void MainWindow::cease_auto_Tx_after_QSO ()
 void MainWindow::on_logQSOButton_clicked()                 //Log QSO button
 {
       // Z
-    if (m_zdebug) log("on_logQSOButton_clicked!");
+    if (m_zdebug) log("on_logQSOButton_clicked! m_hisCall=[" + m_hisCall + "] m_lastCall=[" + m_lastCall + "]");
     if (!m_hisCall.size () || m_lastCall == m_hisCall) {
-        if (m_zdebug) log("on_logQSOButton_clicked: m_hisCall is empty, or callsign already logged. Exiting.");
+        if (m_zdebug) log("on_logQSOButton_clicked: EARLY RETURN - m_hisCall empty or already logged");
         clearDX();
         m_inQSOwith="";
         return;
     }
+    if (m_zdebug) log("on_logQSOButton_clicked: PROCEEDING - first QSO with " + m_hisCall);
 
   if (!m_hisCall.size ()) {
     MessageBox::warning_message (this, tr ("Warning:  DX Call field is empty."));
@@ -9241,6 +9357,7 @@ void MainWindow::on_logQSOButton_clicked()                 //Log QSO button
 
   // Z
   if (m_lastCall != m_hisCall) {
+      QString callLogged = m_hisCall;  // Save before initLogQSO triggers signal/slot that clears DX
       if (m_rptSent.isEmpty()) {
           m_rptSent = QString::number(ui->rptSpinBox->value());
           int n=m_rptSent.toInt();
@@ -9248,17 +9365,14 @@ void MainWindow::on_logQSOButton_clicked()                 //Log QSO button
       }
       m_logDlg->initLogQSO (m_hisCall, grid, m_mode, m_rptSent , m_rptRcvd,
                             m_dateTimeQSOOn, dateTimeQSOOff, m_freqNominal +
-                           ui->TxFreqSpinBox->value(), m_noSuffix, m_xSent, m_xRcvd);
+                           ui->TxFreqSpinBox->value(), m_noSuffix, m_xSent, m_xRcvd,
+                           ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked());
 
          if (m_config.rxTotxFreq()) on_pbT2R_clicked();
-         if (m_zdebug) log("Updating m_lastCall from " + m_lastCall + " to " + m_hisCall);
-         m_lastCall = m_hisCall;
+         if (m_zdebug) log("Updating m_lastCall from " + m_lastCall + " to " + callLogged);
+         m_lastCall = callLogged;
          if (ui->cbAutoCQ->isChecked() || ui->cbAutoCall->isChecked()) {
-             if (m_zdebug) log("QSO Logged: " + m_hisCall);
-             // initLogQSO already calls accept() when autoLog is on for contests
-             // (NA_VHF/EU_VHF/etc.). Calling accept() again double-runs the QSO
-             // pipeline (CabrilloLog::add_QSO + acceptQSO signal) and crashes
-             // intermittently. Hidden dialog == already auto-accepted.
+             if (m_zdebug) log("QSO Logged: " + callLogged);
              if (m_logDlg && !m_logDlg->isHidden()) m_logDlg->accept();
              if (ui->cbAutoCall->isChecked()) auto_tx_mode (false);
              resetAutoSwitch();
@@ -9281,7 +9395,8 @@ void MainWindow::acceptQSO (QDateTime const& QSO_date_off, QString const& call, 
                             , QString const& name, QDateTime const& QSO_date_on, QString const& operator_call
                             , QString const& my_call, QString const& my_grid
                             , QString const& exchange_sent, QString const& exchange_rcvd
-                            , QString const& propmode, QByteArray const& ADIF)
+                            , QString const& propmode, QString const& satellite
+                            , QString const& satmode, QString const& freqRx, QByteArray const& ADIF)
 {
   QString date = QSO_date_on.toString("yyyyMMdd");
   if (!m_logBook.add (call, grid, m_config.bands()->find(dial_freq), mode, ADIF))
@@ -9290,9 +9405,14 @@ void MainWindow::acceptQSO (QDateTime const& QSO_date_off, QString const& call, 
                                    tr ("Cannot open \"%1\"").arg (m_logBook.path ()));
     }
 
+  // ── Plot logged QSO on DXStationMap ───────────────────────────────────────
+  if (m_dxStationMap) {
+    m_dxStationMap->addLoggedStation(call, grid, dial_freq);
+  }
+
   m_messageClient->qso_logged (QSO_date_off, call, grid, dial_freq, mode, rpt_sent, rpt_received
                                , tx_power, comments, name, QSO_date_on, operator_call, my_call, my_grid
-                               , exchange_sent, exchange_rcvd, propmode);
+                               , exchange_sent, exchange_rcvd, propmode, satellite, satmode, freqRx);
   m_messageClient->logged_ADIF (ADIF);
 
   // Z
@@ -15878,6 +15998,18 @@ void MainWindow::on_actionPSKReporter_triggered() {
         m_pskReporterView->setFont(m_config.decoded_text_font ());
         m_pskReporterView->raise ();
         m_pskReporterView->activateWindow ();
+    }
+}
+
+void MainWindow::on_actionDXStationMap_triggered() {
+    if (m_dxStationMap) {
+        if (m_dxStationMap->isVisible()) {
+            m_dxStationMap->hide();
+        } else {
+            m_dxStationMap->showNormal();
+            m_dxStationMap->raise();
+            m_dxStationMap->activateWindow();
+        }
     }
 }
 

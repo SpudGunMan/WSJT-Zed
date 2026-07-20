@@ -100,6 +100,7 @@ class WSPRBandHopping;
 // Z
 class UnfilteredView;
 class PSKReporterWidget;
+class DXStationMap;
 
 class HelpTextWindow;
 class WSPRNet;
@@ -280,7 +281,8 @@ private slots:
                   , QString const& name, QDateTime const& QSO_date_on, QString const& operator_call
                   , QString const& my_call, QString const& my_grid
                   , QString const& exchange_sent, QString const& exchange_rcvd
-                  , QString const& propmode, QByteArray const& ADIF);
+                  , QString const& propmode, QString const& satellite
+                  , QString const& satmode, QString const& freqRx, QByteArray const& ADIF);
   void on_bandComboBox_currentIndexChanged (int index);
   void on_bandComboBox_editTextChanged (QString const& text);
   void on_bandComboBox_activated (int index);
@@ -460,6 +462,7 @@ private slots:
     double watchdog();
      void on_actionUnfiltered_View_triggered();
      void on_actionPSKReporter_triggered();
+     void on_actionDXStationMap_triggered();
      void updateQsoCounter(bool increment);
      void on_txFirstCheckBox_toggled();
     void update_tx5(const QString &qsy_text);
@@ -772,6 +775,7 @@ private:
   bool    m_autoCQAlternateEvenOddNext = false;
   QScopedPointer<UnfilteredView> m_unfilteredView;
   QScopedPointer<PSKReporterWidget> m_pskReporterView;
+  QScopedPointer<DXStationMap> m_dxStationMap;
   QSet<QString> m_pskReporterReceivers;
   QThread * m_pskReporterThread;
   QDateTime m_ignoreListReset;
