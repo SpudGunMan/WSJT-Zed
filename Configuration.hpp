@@ -223,7 +223,6 @@ public:
   bool rxTotxFreq() const;
   bool udpFiltering() const;
   bool highlightDX() const;
-  bool hideOwnCall() const;
   bool dbgScreen () const;
   bool dbgFile () const;
   bool dbgBoth () const;
