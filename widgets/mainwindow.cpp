@@ -1747,6 +1747,7 @@ void MainWindow::writeSettings()
   m_settings->setValue ("smartModeSwitchEnabled", m_smartModeSwitch);
   m_settings->setValue ("autoCQCount", ui->sb_autoCQCount->value ());
   m_settings->setValue ("autoCallCount", ui->sb_autoCallCount->value ());
+  m_settings->setValue ("autoRxCount", ui->sb_autoRxCount->value ());
 
 
   m_settings->setValue ("bandHopperEnabled", ui->cb_bandHopper->isChecked());
@@ -1987,10 +1988,12 @@ void MainWindow::readSettings()
   ui->cbAutoCQAlternateEvenOdd->setChecked(m_settings->value("autoCQAlternateEvenOdd", false).toBool());
   m_smartModeSwitch = m_settings->value("smartModeSwitchEnabled", false).toBool();
   update_auto_mode_switch_widget ();
-  ui->sb_autoCQCount->setValue(m_settings->value("autoCQCount", 5).toInt());
-  ui->sb_autoCallCount->setValue(m_settings->value("autoCallCount", 5).toInt());
+  ui->sb_autoCQCount->setValue(qMax(1, m_settings->value("autoCQCount", 5).toInt()));
+  ui->sb_autoCallCount->setValue(qMax(1, m_settings->value("autoCallCount", 5).toInt()));
+  ui->sb_autoRxCount->setValue(m_settings->value("autoRxCount", 0).toInt());
   ui->le_autoCQLeft->setText(m_settings->value("autoCQCount", 5).toString());
   ui->le_autoCallLeft->setText(m_settings->value("autoCallCount", 5).toString());
+  ui->le_autoRxLeft->setText(m_settings->value("autoRxCount", 0).toString());
   ui->cb_bandHopper->setChecked(m_settings->value("bandHopperEnabled", false).toBool());
   ui->pb_BandChangeNow->setVisible(ui->cb_bandHopper->isChecked());
   ui->pte_bandHopper->setPlainText(m_settings->value("bandHopper", "").toString());
@@ -3643,15 +3646,20 @@ void MainWindow::update_mode_switch_status_label ()
 
   int auto_call_left = ui->le_autoCallLeft->text ().toInt ();
   int auto_cq_left = ui->le_autoCQLeft->text ().toInt ();
+  int auto_rx_left = ui->le_autoRxLeft->text ().toInt ();
   int auto_call_total = ui->sb_autoCallCount->value ();
   int auto_cq_total = ui->sb_autoCQCount->value ();
+  int auto_rx_total = ui->sb_autoRxCount->value ();
 
   if (auto_call_total < 0) auto_call_total = 0;
   if (auto_cq_total < 0) auto_cq_total = 0;
+  if (auto_rx_total < 0) auto_rx_total = 0;
   if (auto_call_left < 0) auto_call_left = 0;
   if (auto_cq_left < 0) auto_cq_left = 0;
+  if (auto_rx_left < 0) auto_rx_left = 0;
   if (auto_call_left > auto_call_total) auto_call_left = auto_call_total;
   if (auto_cq_left > auto_cq_total) auto_cq_left = auto_cq_total;
+  if (auto_rx_left > auto_rx_total) auto_rx_left = auto_rx_total;
 
   if (ui->cb_autoModeSwitch->isChecked ())
     {
@@ -3663,6 +3671,9 @@ void MainWindow::update_mode_switch_status_label ()
       } else if (ui->cbAutoCQ->isChecked ()) {
         ms_remaining = auto_cq_left;
         ms_total = auto_cq_total;
+      } else if (!ui->cbAutoCall->isChecked () && !ui->cbAutoCQ->isChecked () && auto_rx_total > 0) {
+        ms_remaining = auto_rx_left;
+        ms_total = auto_rx_total;
       }
 
       if (ms_total > 0)
@@ -3748,6 +3759,11 @@ void MainWindow::update_mode_switch_status_label ()
                   if (ui->cb_autoModeSwitch->isChecked ()) {
                     bh_remaining += auto_call_total;
                   }
+                }
+              else if (!ui->cbAutoCall->isChecked () && !ui->cbAutoCQ->isChecked () && auto_rx_total > 0)
+                {
+                  // AutoRx is active, band hop will occur after RX + CQ + Call all complete
+                  bh_remaining = auto_rx_left + auto_cq_total + auto_call_total;
                 }
 
               if (bh_remaining > 0)
@@ -6301,20 +6317,12 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                     .arg(composite_rr73_detected)
                     .arg(raw_words.size())
                     .arg(raw_words.size() > 1 ? raw_words.at(1) : "N/A"));
-  // Check if we're in composite RR73
-  // Format: PRIMARY RR73; SECONDARY <TERTIARY> REPORT
-  // Process if we're PRIMARY (receiving RR73) or SECONDARY (being informed we're next)
-  bool composite_rr73_for_me = false;
-  if (composite_rr73_detected && message.is_composite_message())
-    {
-      auto const& fields = message.composite_message_fields();
-      // PRIMARY: we're receiving the RR73 from tertiary
-      // SECONDARY: we're being informed we're next
-      composite_rr73_for_me = token_matches_call(fields.primary_caller, m_config.my_callsign())
-                              || token_matches_call(fields.primary_caller, m_baseCall)
-                              || token_matches_call(fields.secondary_caller, m_config.my_callsign())
-                              || token_matches_call(fields.secondary_caller, m_baseCall);
-    }
+  // Check if we're either primary or secondary caller in composite RR73
+  bool composite_rr73_for_me = composite_rr73_detected
+    && ((token_matches_call (raw_words.value (0), m_config.my_callsign ())
+         || token_matches_call (raw_words.value (0), m_baseCall))
+        || (raw_words.size() > 2 && (token_matches_call (raw_words.value (2), m_config.my_callsign ())
+                                      || token_matches_call (raw_words.value (2), m_baseCall))));
   if (m_zdebug && composite_rr73_detected) 
     log(QString("composite_rr73_for_me=%1 (primary[0]=%2, secondary[2]=%3)")
         .arg(composite_rr73_for_me)
@@ -6389,25 +6397,6 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
       return;
     }
 
-    // Handle composite RR73 BEFORE auto gate so it processes regardless of m_auto status
-    if(SpecOp::FOX != m_specOp && composite_rr73_for_me && message.is_composite_message())
-    {
-      auto const& fields = message.composite_message_fields ();
-      bool const is_secondary = token_matches_call(fields.secondary_caller, m_config.my_callsign())
-                                || token_matches_call(fields.secondary_caller, m_baseCall);
-      
-      if (is_secondary)
-        {
-          // We're being informed we're next: save context and skip processing
-          m_hisCall = fields.tertiary_caller;
-          m_lastCall = fields.primary_caller;
-          m_QSOProgress = REPLYING;
-          if (m_zdebug) log (QString ("auto_sequence: Composite RR73 SECONDARY, we're next after %1 to work %2").arg (fields.primary_caller).arg(m_hisCall));
-          return;
-        }
-      // Note: PRIMARY composite RR73 falls through to normal processing
-    }
-
     // Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
     bool const auto_qrm_guard_state = m_QSOProgress == CALLING
                       || m_QSOProgress == REPLYING
@@ -6455,7 +6444,7 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
                            || message_words.at (2).contains (m_baseCall))))) {
       if(SpecOp::FOX != m_specOp)
       {
-          // Handle composite RR73 messages
+          // Handle composite RR73 messages by setting target call to tertiary caller
           if (m_zdebug) log (QString ("composite_rr73_for_me=%1 is_composite=%2 specOp=%3")
                             .arg(composite_rr73_for_me)
                             .arg(message.is_composite_message())
@@ -6463,19 +6452,9 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
           if (composite_rr73_for_me && message.is_composite_message ())
             {
               auto const& fields = message.composite_message_fields ();
-              bool const is_secondary = token_matches_call(fields.secondary_caller, m_config.my_callsign())
-                                        || token_matches_call(fields.secondary_caller, m_baseCall);
-              
-              if (is_secondary)
-                {
-                  // We're being informed we're next: save the tertiary as our next call
-                  m_hisCall = fields.tertiary_caller;
-                  m_lastCall = fields.primary_caller;
-                  m_QSOProgress = REPLYING;  // Position state machine for next message from tertiary
-                  if (m_zdebug) log (QString ("Composite RR73 SECONDARY (auto_sequence): we're next after %1 to work %2, m_QSOProgress=%3").arg (fields.primary_caller).arg(m_hisCall).arg(m_QSOProgress));
-                  return;  // Skip further processing for now
-                }
-              // Note: PRIMARY composite RR73 falls through to normal processMessage handling for proper transmission
+              // Always target the tertiary regardless of whether we're primary or secondary
+              m_hisCall = fields.tertiary_caller;
+              if (m_zdebug) log (QString ("Composite RR73 for me: setting target to %1").arg (m_hisCall));
             }
           
           // Z
@@ -7325,6 +7304,7 @@ void MainWindow::guiUpdate()
 
     if(m_mode=="FST4") chk_FST4_freq_range();
     m_currentBand=m_config.bands()->find(m_freqNominal);
+    m_pskReporterReceivers.clear();  // Clear PSK Reporter receivers when band changes to avoid stale highlighting
     // Z
     /*
     if( SpecOp::HOUND == m_specOp ) {
@@ -7941,36 +7921,18 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
 
   QStringList w=message.clean_string ().mid(22).remove("<").remove(">").split(" ",SkipEmptyParts);
   auto const& raw_words = message.clean_string().split(" ", SkipEmptyParts);
-  // Handle composite RR73 FIRST before any state machine logic
-  if (message.is_composite_message()) {
-    auto const& fields = message.composite_message_fields ();
-    bool const is_primary = token_matches_call(fields.primary_caller, m_config.my_callsign())
-                            || token_matches_call(fields.primary_caller, m_baseCall);
-    bool const is_secondary = token_matches_call(fields.secondary_caller, m_config.my_callsign())
-                              || token_matches_call(fields.secondary_caller, m_baseCall);
-    
-    if (m_zdebug) log(QString("processMessage: composite handler executing - is_primary=%1 is_secondary=%2").arg(is_primary).arg(is_secondary));
-    
-    if (is_primary) {
-      // We're receiving the RR73: log and send acknowledgment
-      if (m_zdebug) log (QString ("processMessage: Composite RR73 PRIMARY from %1").arg (fields.tertiary_caller));
-      m_hisCall = fields.tertiary_caller;
-      m_QSOProgress = SIGNOFF;
-      m_ntx=6;
-      ui->txrb6->setChecked(true);
-      if (m_zdebug) log (QString ("processMessage: Before log - m_hisCall=%1 m_QSOProgress=%2").arg(m_hisCall).arg(m_QSOProgress));
-      cease_auto_Tx_after_QSO ();
-      on_logQSOButton_clicked();
-      return;
-    }
-    else if (is_secondary) {
-      // We're being informed we're next: save the tertiary as our next call
-      m_hisCall = fields.tertiary_caller;
-      m_lastCall = fields.primary_caller;
-      m_QSOProgress = REPLYING;
-      if (m_zdebug) log (QString ("processMessage: Composite RR73 SECONDARY, we're next after %1 to work %2").arg (fields.primary_caller).arg(m_hisCall));
-      return;
-    }
+  bool const composite_rr73_detected = composite_rr73(raw_words);
+  bool const composite_rr73_for_me = composite_rr73_detected
+    && (token_matches_call(raw_words.value(0), m_config.my_callsign())
+        || token_matches_call(raw_words.value(0), m_baseCall));
+
+  // Z - DEBUG composite RR73 detection in processMessage
+  if (m_zdebug && composite_rr73_detected) {
+    log(QString("processMessage EARLY: composite_rr73_detected=1 raw_words[0]=%1 m_config.my_callsign()=%2 m_baseCall=%3 composite_rr73_for_me=%4")
+        .arg(raw_words.value(0))
+        .arg(m_config.my_callsign())
+        .arg(m_baseCall)
+        .arg(composite_rr73_for_me));
   }
 
   // Z
@@ -8032,12 +7994,38 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
 // Determine appropriate response to received message
   auto dtext = " " + message.clean_string () + " ";
   dtext=dtext.remove("<").remove(">");
-  if(dtext.contains (" " + m_baseCall + " ")
+  bool addressed_to_me_check = (dtext.contains (" " + m_baseCall + " ")
      || dtext.contains ("<" + m_baseCall + "> ")
 //###???     || dtext.contains ("<" + m_baseCall + " " + hiscall + "> ")
      || dtext.contains ("/" + m_baseCall + " ")
      || dtext.contains (" " + m_baseCall + "/")
-     || (firstcall == "DE")) {
+     || (firstcall == "DE"));
+  if (m_zdebug) log(QString("processMessage: message addressed check: composite_rr73_for_me=%1 addressed_to_me_check=%2 dtext contains m_baseCall=%3 m_baseCall=%4")
+                    .arg(composite_rr73_for_me)
+                    .arg(addressed_to_me_check)
+                    .arg(dtext.contains(" " + m_baseCall + " "))
+                    .arg(m_baseCall));
+
+  // Handle composite RR73 FIRST before any other logic
+  if (composite_rr73_for_me) {
+    if (m_zdebug) log(QString("processMessage: COMPOSITE RR73 FOR ME - skipping grid logic, jumping to handler"));
+    if (raw_words.size() > 0) {
+      hiscall = raw_words.at(0);  // Use primary caller for logging
+      if (m_zdebug) log(QString("processMessage: Composite RR73 PRIMARY from %1").arg(hiscall));
+    }
+    m_hisCall = hiscall;  // Update the call to log
+    if (m_zdebug) log(QString("processMessage: Before log - m_hisCall=%1 m_QSOProgress=%2").arg(m_hisCall).arg(m_QSOProgress));
+    if (m_config.prompt_to_log() || m_config.autoLog()) {
+      logQSOTimer.start(0);
+    }
+    else {
+      cease_auto_Tx_after_QSO ();
+    }
+    m_QSOProgress = SIGNOFF;
+    return;  // Don't process further
+  }
+
+  if(addressed_to_me_check) {
 
     QString w2;
     int nw=w.size();
@@ -8299,6 +8287,16 @@ void MainWindow::processMessage (DecodedText const& message, Qt::KeyboardModifie
             return;
           }
       }
+    }
+    else if (composite_rr73_for_me
+             || (5 == message_words.size ()
+                 && m_baseCall == message_words.at (1))) {
+      // dual Fox style message, possibly from MSHV - QSO is complete, always log
+      logQSOTimer.start(0);
+      if (!m_config.prompt_to_log() && !m_config.autoLog()) {
+        cease_auto_Tx_after_QSO ();
+      }
+      m_QSOProgress = SIGNOFF;
     }
     else if (m_QSOProgress >= ROGERS
              && message_words.size () > 3 && message_words.at (2).contains (m_baseCall)
@@ -15493,6 +15491,10 @@ void MainWindow::on_cb_autoModeSwitch_toggled(bool b) {
     ui->le_autoCallLeft->setText("");
     ui->le_autoCQLeft->setText("");
     }
+  // Keep spinboxes enabled for editing even when groupbox is unchecked
+  ui->sb_autoCQCount->setEnabled(true);
+  ui->sb_autoCallCount->setEnabled(true);
+  ui->sb_autoRxCount->setEnabled(true);
   update_auto_mode_switch_widget ();
   update_mode_switch_status_label ();
 }
@@ -15719,7 +15721,8 @@ void MainWindow::ZProcess ()
     if (m_QSOProgress == CALLING) {
         if (m_zdebug) log("ZProcess: m_QSOProgress = CALLING");
 
-        if (ui->cbAutoCall->isChecked() || ui->cbAutoCQ->isChecked()) {
+        if (ui->cbAutoCall->isChecked() || ui->cbAutoCQ->isChecked() || 
+            (!ui->cbAutoCall->isChecked() && !ui->cbAutoCQ->isChecked() && ui->sb_autoRxCount->value() > 0)) {
 
                 if (ui->cbAutoCall->isChecked()) {
                     int l = ui->le_autoCallLeft->text().toInt();
@@ -15729,43 +15732,50 @@ void MainWindow::ZProcess ()
                         resetAutoSwitch();
                         if (ui->cb_autoModeSwitch->isChecked()) {
                             m_autoModeSwitch = true;
-                            ui->cbAutoCall->setChecked(false);
-                            ui->cbAutoCQ->setChecked(true);
-                            // With auto mode switch enabled, hop at the
-                            // AutoCall -> AutoCQ boundary.
-                            if (ui->cb_bandHopper->isChecked()) toggleBands();
-                            if (m_smartModeSwitch) {
-                              ui->cbHoldTxFreq->setChecked(true);
-                              if (m_config.autoTXFreq()) {
-                                bool freeSlotFound = (busySlots.size() >= 2 && setFreeFreq());
-                                m_autoTXFreq = !freeSlotFound;
-                                auto_tx_mode(freeSlotFound);
-                              } else {
-                                // Respect config: no free-slot search on mode change.
-                                m_autoTXFreq = false;
-                                auto_tx_mode(true);
+                            // Check if AutoRx should be next (if count > 0)
+                            if (ui->sb_autoRxCount->value() > 0) {
+                              ui->cbAutoCall->setChecked(false);
+                              ui->cbAutoCQ->setChecked(false);
+                              ui->le_autoRxLeft->setText(QString::number(ui->sb_autoRxCount->value()));
+                              if (m_zdebug) log("ZProcess: Switched to AutoRx");
+                            } else if (ui->sb_autoCQCount->value() > 0) {
+                              ui->cbAutoCall->setChecked(false);
+                              ui->cbAutoCQ->setChecked(true);
+                              if (m_smartModeSwitch) {
+                                ui->cbHoldTxFreq->setChecked(true);
+                                if (m_config.autoTXFreq()) {
+                                  bool freeSlotFound = (busySlots.size() >= 2 && setFreeFreq());
+                                  m_autoTXFreq = !freeSlotFound;
+                                  auto_tx_mode(freeSlotFound);
+                                } else {
+                                  m_autoTXFreq = false;
+                                  auto_tx_mode(true);
+                                }
+                              } else if (m_config.autoTXFreq()) {
+                                m_autoTXFreq = true;
                               }
-                            } else if (m_config.autoTXFreq()) {
-                              m_autoTXFreq = true;
+                              if  (!m_TxFirstLock) {
+                                      QDateTime now {QDateTime::currentDateTimeUtc()};
+                                      int n=fmod(double(now.time().second()),m_TRperiod);
+                                      int periodTotal = now.time().second() - n + m_TRperiod;
+                                      bool txf = !(fmod(periodTotal/m_TRperiod, 2) == 0);
+                                      ui->txFirstCheckBox->setChecked(txf);
+                              }
+                              ui->cbAutoCall->setEnabled(false);
+                              ui->cbFirst->setChecked(true);
+                              ui->cbAutoSeq->setChecked(true);
+                              ui->txrb6->setChecked(true);
+                              if (m_smartModeSwitch && ui->cb_autoModeSwitch->isChecked()) {
+                                ui->cbHoldTxFreq->setChecked(true);
+                              }
+                              resetAutoSwitch();
+                              clearDX();
+                              if (m_zdebug) log("ZProcess: Switched to AutoCQ");
+                              tx_watchdog(false);
                             }
-                            if  (!m_TxFirstLock) {
-                                    QDateTime now {QDateTime::currentDateTimeUtc()};
-                                    int n=fmod(double(now.time().second()),m_TRperiod);
-                                    int periodTotal = now.time().second() - n + m_TRperiod;
-                                    bool txf = !(fmod(periodTotal/m_TRperiod, 2) == 0);
-                                    ui->txFirstCheckBox->setChecked(txf);
-                            }
-                            ui->cbAutoCall->setEnabled(false);
-                            ui->cbFirst->setChecked(true);
-                            ui->cbAutoSeq->setChecked(true);
-                            ui->txrb6->setChecked(true);
-                            if (m_smartModeSwitch && ui->cb_autoModeSwitch->isChecked()) {
-                              ui->cbHoldTxFreq->setChecked(true);
-                            }
-                            resetAutoSwitch();
-                            clearDX();
-                            if (m_zdebug) log("ZProcess: Switched to AutoCQ");
-                            tx_watchdog(false);
+                            // With auto mode switch enabled, hop at the
+                            // AutoCall -> next boundary.
+                            if (ui->cb_bandHopper->isChecked()) toggleBands();
                         } else {
                             toggleBands();
                         }
@@ -15788,16 +15798,56 @@ void MainWindow::ZProcess ()
                           resetAutoSwitch();
                           if (ui->cb_autoModeSwitch->isChecked()) {
                               m_autoModeSwitch = true;
-                              ui->cbAutoCQ->setChecked(false);
-                              ui->cbAutoCall->setChecked(true);
-                              if (m_smartModeSwitch) {
-                                ui->cbHoldTxFreq->setChecked(false);
+                              if (ui->sb_autoCallCount->value() > 0) {
+                                  ui->cbAutoCQ->setChecked(false);
+                                  ui->cbAutoCall->setChecked(true);
+                                  if (m_smartModeSwitch) {
+                                    ui->cbHoldTxFreq->setChecked(false);
+                                  }
+                                  if (m_zdebug) log("ZProcess: Switched to AutoCall");
                               }
-                              if (m_zdebug) log("ZProcess: Switched to AutoCall");
                           } else {
                               toggleBands();
                           }
                     }
+                    }
+                } else if (!ui->cbAutoCall->isChecked() && !ui->cbAutoCQ->isChecked()) {
+                    // AutoRx mode is active
+                    int l = ui->le_autoRxLeft->text().toInt();
+                    if (l > 1) {
+                        ui->le_autoRxLeft->setText(QString::number(l-1));
+                    } else {
+                        // AutoRx counter reached 0, cycle back to AutoCQ
+                        resetAutoSwitch();
+                        if (ui->cb_autoModeSwitch->isChecked()) {
+                            m_autoModeSwitch = true;
+                            if (ui->sb_autoCQCount->value() > 0) {
+                              ui->cbAutoCQ->setChecked(true);
+                              if (m_smartModeSwitch) {
+                                ui->cbHoldTxFreq->setChecked(true);
+                                if (m_config.autoTXFreq()) {
+                                  bool freeSlotFound = (busySlots.size() >= 2 && setFreeFreq());
+                                  m_autoTXFreq = !freeSlotFound;
+                                  auto_tx_mode(freeSlotFound);
+                                } else {
+                                  m_autoTXFreq = false;
+                                  auto_tx_mode(true);
+                                }
+                              }
+                              ui->cbAutoCall->setEnabled(false);
+                              ui->cbFirst->setChecked(true);
+                              ui->cbAutoSeq->setChecked(true);
+                              ui->txrb6->setChecked(true);
+                              if (m_smartModeSwitch && ui->cb_autoModeSwitch->isChecked()) {
+                                ui->cbHoldTxFreq->setChecked(true);
+                              }
+                              if (m_zdebug) log("ZProcess: Switched from AutoRx to AutoCQ");
+                              // With auto mode switch enabled, hop at the AutoRx -> AutoCQ boundary.
+                              if (ui->cb_bandHopper->isChecked()) toggleBands();
+                            }
+                        } else {
+                            toggleBands();
+                        }
                     }
                 }
 
@@ -15824,6 +15874,7 @@ void MainWindow::on_pb_WDReset_clicked() {
 void MainWindow::resetAutoSwitch() {
     ui->le_autoCallLeft->setText(QString::number(ui->sb_autoCallCount->value()));
     ui->le_autoCQLeft->setText(QString::number(ui->sb_autoCQCount->value()));
+    ui->le_autoRxLeft->setText(QString::number(ui->sb_autoRxCount->value()));
     clearPounceState();
     update_mode_switch_status_label ();
 }
@@ -16188,15 +16239,30 @@ void MainWindow::on_pb_FreeFreq_clicked() {
 }
 
 void MainWindow::on_pb_ModeChangeNow_clicked() {
-  if (ui->cbAutoCall->isChecked() && !ui->cbAutoCQ->isChecked()) {
-    ui->cbAutoCall->setChecked(false);
-    ui->cbAutoCQ->setChecked(true);
+  // Cycle: AutoCQ -> AutoCall -> AutoRx (if count > 0) -> AutoCQ
+  if (ui->cbAutoCQ->isChecked() && !ui->cbAutoCall->isChecked()) {
+    // AutoCQ is active, switch to AutoCall
+    ui->cbAutoCQ->setChecked(false);
+    ui->cbAutoCall->setChecked(true);
     return;
   }
 
-  if (!ui->cbAutoCall->isChecked() && ui->cbAutoCQ->isChecked()) {
-    ui->cbAutoCQ->setChecked(false);
-    ui->cbAutoCall->setChecked(true);
+  if (!ui->cbAutoCQ->isChecked() && ui->cbAutoCall->isChecked()) {
+    // AutoCall is active, switch to AutoRx (if enabled) or back to AutoCQ
+    if (ui->sb_autoRxCount->value() > 0) {
+      ui->cbAutoCall->setChecked(false);
+      ui->cbAutoCQ->setChecked(false);
+      ui->le_autoRxLeft->setText(QString::number(ui->sb_autoRxCount->value()));
+    } else {
+      ui->cbAutoCall->setChecked(false);
+      ui->cbAutoCQ->setChecked(true);
+    }
+    return;
+  }
+
+  if (!ui->cbAutoCQ->isChecked() && !ui->cbAutoCall->isChecked()) {
+    // AutoRx is active, switch back to AutoCQ
+    ui->cbAutoCQ->setChecked(true);
     return;
   }
 }
