@@ -3715,7 +3715,7 @@ list. The list can be maintained in Settings (F2).</string>
                            </widget>
                           </item>
                           <item row="2" column="0">
-                           <widget class="QLabel" name="label_23">
+                           <widget class="QLabel" name="label_autoRxCount">
                             <property name="text">
                              <string>AutoRx #</string>
                             </property>
@@ -3822,7 +3822,7 @@ list. The list can be maintained in Settings (F2).</string>
                           </spacer>
                          </item>
                          <item>
-                          <widget class="QLabel" name="label_23">
+                          <widget class="QLabel" name="label_autoCallPriority">
                            <property name="text">
                             <string>Priority:</string>
                            </property>
