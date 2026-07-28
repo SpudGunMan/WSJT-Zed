@@ -42,8 +42,7 @@ signals:
                   , QString const& name, QDateTime const& QSO_date_on,  QString const& operator_call
                   , QString const& my_call, QString const& my_grid
                   , QString const& exchange_sent, QString const& exchange_rcvd
-                  , QString const& propmode, QString const& satellite
-                  , QString const& sat_mode, QString const& freqRx, QByteArray const& ADIF);
+                  , QString const& propmode, QByteArray const& ADIF);
 
 protected:
   void hideEvent (QHideEvent *);
@@ -51,7 +50,6 @@ protected:
 private:
   void loadSettings ();
   void storeSettings () const;
-  void propModeChanged ();
 
   QScopedPointer<Ui::LogQSO> ui;
   QSettings * m_settings;
@@ -62,7 +60,6 @@ private:
   Radio::Frequency m_dialFreq;
   QString m_myCall;
   QString m_myGrid;
-  QString m_freqRx;
 };
 
 #endif // LogQSO_H
