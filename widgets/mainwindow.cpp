@@ -576,6 +576,9 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   m_dxStationMap->setMyCall(m_config.my_callsign());
   m_dxStationMap->setHomeGrid(m_config.my_grid());
   m_dxStationMap->setDistanceInMiles(m_config.miles());
+  m_dxMapStartedUtc = QDateTime::currentDateTimeUtc();
+  m_dxMapLastLogUtc = QDateTime();
+  m_dxStationMap->setTickerStats(qso_total, qso_new, m_dxMapStartedUtc, m_dxMapLastLogUtc);
   m_dxStationMap->hide();
 
   m_optimizingProgress.setWindowModality (Qt::WindowModal);
@@ -9407,7 +9410,7 @@ void MainWindow::acceptQSO (QDateTime const& QSO_date_off, QString const& call, 
       snr_for_logged = rpt_sent.toInt(&ok);
       if (!ok) snr_for_logged = 0;  // Default to 0 if parsing fails
     }
-    m_dxStationMap->addLoggedStation(call, grid, dial_freq, snr_for_logged);
+    m_dxStationMap->addLoggedStation(call, grid, dial_freq, snr_for_logged, mode);
   }
 
   m_messageClient->qso_logged (QSO_date_off, call, grid, dial_freq, mode, rpt_sent, rpt_received
@@ -9416,7 +9419,12 @@ void MainWindow::acceptQSO (QDateTime const& QSO_date_off, QString const& call, 
   m_messageClient->logged_ADIF (ADIF);
 
   // Z
+  const auto nowUtc = QDateTime::currentDateTimeUtc();
   updateQsoCounter(true);
+  m_dxMapLastLogUtc = nowUtc;
+  if (m_dxStationMap) {
+    m_dxStationMap->setTickerStats(qso_total, qso_new, m_dxMapStartedUtc, m_dxMapLastLogUtc, 0.0);
+  }
   clearDX();
 
   // Log to N1MM Logger
@@ -14224,6 +14232,12 @@ void MainWindow::on_btn_addToIgnore_clicked( ) {
       {
         ui->pte_IgnoredStations->appendPlainText(candidate);
       }
+}
+
+void MainWindow::on_btn_addToPermIgnore_clicked()
+{
+    m_config.set_permIgnoreList(ui->pte_IgnoredStations->toPlainText());
+    showStatusMessage(tr("Saved current ignore list to permanent ignore list"));
 }
 
 void MainWindow::on_btn_clearIgnore_clicked( ) {

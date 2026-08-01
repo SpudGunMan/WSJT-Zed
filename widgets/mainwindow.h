@@ -426,6 +426,7 @@ private slots:
      // Decode > Wideband DX Call search
      void on_actionFT8WidebandDXCallSearch_toggled(bool checked);
      void on_btn_addToIgnore_clicked();
+     void on_btn_addToPermIgnore_clicked();
      void on_btn_clearIgnore_clicked();
      void on_actionIgnore_station_triggered();
      void on_actionCall_next_triggered();
@@ -794,6 +795,8 @@ private:
   bool m_AutoTxFreq = false;
   int qso_total = 0;
   int qso_new = 0;
+  QDateTime m_dxMapStartedUtc;
+  QDateTime m_dxMapLastLogUtc;
   QByteArray m_unfilteredViewGeometry;
   QByteArray m_pskReporterViewGeometry;
   
