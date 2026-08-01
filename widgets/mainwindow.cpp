@@ -528,9 +528,6 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   setUnifiedTitleAndToolBarOnMac (true);
   createStatusBar();
   add_child_to_event_filter (this);
-  // Reuse on_btn_addToIgnore_clicked for ignoreButton
-  connect(ui->ignoreButton, &QPushButton::clicked,
-          this, &MainWindow::on_btn_addToIgnore_clicked);
   // Invalidate cached parsed-filter lists when the user edits any filter pane.
   // callsignFiltered() reuses the cache instead of re-parsing per decode.
   connect(ui->pte_IgnoredStations, &QPlainTextEdit::textChanged,
@@ -3539,14 +3536,8 @@ bool MainWindow::eventFilter (QObject * object, QEvent * event)
       if (object == ui->EraseButton) {
         auto const *mouseEvent = static_cast<QMouseEvent const *> (event);
         if (mouseEvent->button() == Qt::RightButton) {
-          ui->tx1->clear();
-          ui->tx2->clear();
-          ui->tx3->clear();
-          ui->tx4->clear();
-          ui->tx5->clearEditText();
-          ui->dxCallEntry->clear();
-          ui->dxGridEntry->clear();
-          ui->txrb6->setChecked(true);
+          clearDX();
+          ui->tx5->clearEditText();  // match triple-click behavior
           if (ui->cbAutoCall->isChecked()) {
             ui->stopTxButton->click (); // halt any transmission
             if (m_zdebug) log("Tx stopped by right-click on Erase button");
@@ -7304,6 +7295,7 @@ void MainWindow::guiUpdate()
 
     if(m_mode=="FST4") chk_FST4_freq_range();
     m_currentBand=m_config.bands()->find(m_freqNominal);
+    m_pskReporterReceivers.clear();  // Clear PSK Reporter receivers when band changes to avoid stale highlighting
     // Z
     /*
     if( SpecOp::HOUND == m_specOp ) {
@@ -9403,7 +9395,14 @@ void MainWindow::acceptQSO (QDateTime const& QSO_date_off, QString const& call, 
 
   // ── Plot logged QSO on DXStationMap ───────────────────────────────────────
   if (m_dxStationMap) {
-    m_dxStationMap->addLoggedStation(call, grid, dial_freq);
+    // Extract SNR from report_sent (e.g., "-09", "+05") — this is our report of their signal
+    int snr_for_logged = 0;
+    bool ok = false;
+    if (!rpt_sent.isEmpty()) {
+      snr_for_logged = rpt_sent.toInt(&ok);
+      if (!ok) snr_for_logged = 0;  // Default to 0 if parsing fails
+    }
+    m_dxStationMap->addLoggedStation(call, grid, dial_freq, snr_for_logged);
   }
 
   m_messageClient->qso_logged (QSO_date_off, call, grid, dial_freq, mode, rpt_sent, rpt_received
@@ -14220,13 +14219,6 @@ void MainWindow::on_btn_addToIgnore_clicked( ) {
       {
         ui->pte_IgnoredStations->appendPlainText(candidate);
       }
-    
-    // Clear tx1-5 messages
-    ui->tx1->clear();
-    ui->tx2->clear();
-    ui->tx3->clear();
-    ui->tx4->clear();
-    ui->tx5->clear();
 }
 
 void MainWindow::on_btn_clearIgnore_clicked( ) {
