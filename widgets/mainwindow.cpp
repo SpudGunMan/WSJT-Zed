@@ -727,12 +727,16 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   connect (m_messageClient, &MessageClient::highlight_callsign, ui->decodedTextBrowser, &DisplayText::highlight_callsign);
   connect (m_messageClient, &MessageClient::switch_configuration, m_multi_settings, &MultiSettings::select_configuration);
   connect (m_messageClient, &MessageClient::configure, this, &MainWindow::remote_configure);
+  connect (m_messageClient, &MessageClient::rotate_log, this, &MainWindow::on_actionRotate_wsjtx_log_adi_triggered);
 
   // Set up MessageServer to listen for incoming UDP messages on port 2237
   // This allows remote clients to send Configure and other commands to WSJT-X
   m_udp_server = new MessageServer {this, QApplication::applicationName (), version ()};
   connect (m_udp_server, &MessageServer::remote_configure, this, [this] (MessageServer::ClientKey const&, QString const& mode, quint32 frequency_tolerance, QString const& submode, bool fast_mode, quint32 tr_period, quint32 rx_df, QString const& dx_call, QString const& dx_grid, bool generate_messages, bool auto_cq_enabled, bool auto_call_enabled) {
     this->remote_configure (mode, frequency_tolerance, submode, fast_mode, tr_period, rx_df, dx_call, dx_grid, generate_messages, auto_cq_enabled, auto_call_enabled);
+  });
+  connect (m_udp_server, &MessageServer::rotate_log, this, [this] (MessageServer::ClientKey const&) {
+    this->rotate_wsjtx_log_adi (false);
   });
   
   // Only start listening if accept_udp_requests is enabled
@@ -6391,6 +6395,11 @@ void MainWindow::auto_sequence (DecodedText const& message, unsigned start_toler
       return;
     }
 
+    if (m_ignoredStationsCache.contains(hiscall)
+        || m_ignoredStationsCache.contains(Radio::base_callsign(hiscall))) {
+      return;
+    }
+
     // Z TODO: This is inccorect - fix !m_config.superFox() && (SpecOp::HOUND != m_specOp)
     bool const auto_qrm_guard_state = m_QSOProgress == CALLING
                       || m_QSOProgress == REPLYING
@@ -10717,6 +10726,69 @@ void MainWindow::on_actionErase_wsjtx_log_adi_triggered()
   }
 }
 
+void MainWindow::rotate_wsjtx_log_adi(bool confirm)
+{
+  if (confirm)
+    {
+      int ret = MessageBox::query_message (this, tr ("Confirm Rotate"),
+                                           tr ("Rotate the current wsjtx_log.adi file to a timestamped backup and start a new log?"));
+      if (ret != MessageBox::Yes)
+        {
+          return;
+        }
+    }
+
+  QDir log_dir = m_config.writeable_data_dir ();
+  QFileInfo current_log {log_dir.absoluteFilePath ("wsjtx_log.adi")};
+  if (!current_log.exists ())
+    {
+      MessageBox::warning_message (this, tr ("Rotate ADIF Log"), tr ("No wsjtx_log.adi file exists to rotate."));
+      return;
+    }
+
+  QString timestamp = QDateTime::currentDateTimeUtc ().toString ("yyyyMMddTHHmmssZ");
+  QString rotated_name = QString {"wsjtx_log_%1.adi"}.arg (timestamp);
+  QString rotated_path = log_dir.absoluteFilePath (rotated_name);
+
+  if (QFile::exists (rotated_path))
+    {
+      QFile::remove (rotated_path);
+    }
+
+  if (!QFile::rename (current_log.absoluteFilePath (), rotated_path))
+    {
+      MessageBox::warning_message (this, tr ("Rotate ADIF Log"), tr ("Failed to rotate the current ADIF log file."));
+      return;
+    }
+
+  QFile new_log {log_dir.absoluteFilePath ("wsjtx_log.adi")};
+  if (!new_log.open (QIODevice::WriteOnly | QIODevice::Text))
+    {
+      MessageBox::warning_message (this, tr ("Rotate ADIF Log"), tr ("Failed to create a new ADIF log file."));
+      return;
+    }
+
+  QTextStream out {&new_log};
+  auto const created_timestamp = QDateTime::currentDateTimeUtc ().toString ("yyyyMMdd HHmmss");
+  out << "ADIF Export\n"
+      << "<adif_ver:5>3.1.1\n"
+      << "<created_timestamp:15>" << created_timestamp << "\n"
+      << "<programid:6>WSJT-X\n"
+      << "<programversion:5>" << QApplication::applicationVersion ().left (5) << "\n"
+      << "<eoh>" << Qt::endl;
+  new_log.close ();
+
+  qso_new = 0;
+  qso_total = 0;
+  updateQsoCounter (false);
+  m_config.rescan_logbook ();
+}
+
+void MainWindow::on_actionRotate_wsjtx_log_adi_triggered()
+{
+  rotate_wsjtx_log_adi (true);
+}
+
 void MainWindow::on_actionErase_WSPR_hashtable_triggered()
 {
   int ret = MessageBox::query_message(this, tr ("Confirm Erase"),
@@ -14254,7 +14326,14 @@ void MainWindow::rebuildFilterCache() const
         s.remove(QChar('\r'));
         return s.split(QChar('\n'), SkipEmptyParts);
     };
-    m_ignoredStationsCache    = split_lines(ui->pte_IgnoredStations->toPlainText());
+
+    QString combined_ignored = ui->pte_IgnoredStations->toPlainText();
+    if (!m_config.permIgnoreList().isEmpty()) {
+        if (!combined_ignored.isEmpty()) combined_ignored += '\n';
+        combined_ignored += m_config.permIgnoreList();
+    }
+
+    m_ignoredStationsCache    = split_lines(combined_ignored);
     m_prefixFilterLinesCache  = split_lines(ui->pte_prefixFilter->toPlainText());
     m_stateFilterLinesCache   = split_lines(ui->pte_stateFilter->toPlainText());
     m_filterCacheValid = true;
@@ -14362,17 +14441,18 @@ bool MainWindow::callsignFiltered(DecodedText dt)
         return false;
     }
 
+    // Ignored stations filter: honor this even when global filtering is off.
+    if (m_ignoredStationsCache.contains(dxCall)
+        || m_ignoredStationsCache.contains(Radio::base_callsign(dxCall))) {
+        if (m_zdebug) log(QString("callsignFiltered: Ignored station: %1").arg(dxCall));
+        return true;
+    }
+
     if (!ui->cb_filtering->isChecked()) return false;
 
     // LOTW only filter
     if ( ui->cb_f_LOTW->isChecked() && !m_config.lotw_users ().user (dxCall)) {
         if (m_zdebug) log("callsignFiltered: User not in LOTW");
-        return true;
-    }
-
-    // Ignored stations filter
-    if (m_ignoredStationsCache.contains(dxCall)) {
-        if (m_zdebug) log("callsignFiltered: Station is in the ignore list");
         return true;
     }
 
