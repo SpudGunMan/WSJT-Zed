@@ -273,7 +273,7 @@ contains
           i3=16
           n3=16
 
-          call ft8bvar(newdat1,nQSOProgress,nfqso,nftx,napwid,lsubtract,ldx_mode,npos,   &
+          call ft8bvar(newdat1,nQSOProgress,nfqso,nftx,napwid,lsubtract,npos,   &
                freqsub,tmpcqdec,tmpmyc,nagainfil,iaptype,f1,xdt,nbadcrc,        &
                lft8sdec,msg37,msg37_2,xsnr,stophint,nthr,lFreeText,ipass,       &
                lft8subpass,lspecial,lcqcand,ncqsignal,nmycsignal,npass,i3bit,   &
