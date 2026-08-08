@@ -14252,6 +14252,7 @@ void MainWindow::sfox_tx() {
 void MainWindow::on_cbAutoCall_toggled(bool b)
 {
     if (b) {
+        ui->cb_autoCallNext->setChecked(false);
         ui->cbCQonly->setChecked(true);
         ui->cbCQonly->setEnabled(false);
         ui->cbAutoCQ->setChecked(false);
@@ -14281,6 +14282,7 @@ void MainWindow::on_cbAutoCall_toggled(bool b)
 void MainWindow::on_cbAutoCQ_toggled(bool b)
 {
     if (b) {
+        ui->cb_autoCallNext->setChecked(false);
         ui->cbAutoCall->setChecked(false);
         ui->cbAutoCall->setEnabled(false);
         if (ui->cb_autoModeSwitch->isChecked() && ui->cbAutoCQAlternateEvenOdd->isChecked()) {
@@ -14330,6 +14332,7 @@ void MainWindow::on_btn_addToPermIgnore_clicked()
 
 void MainWindow::on_btn_clearIgnore_clicked( ) {
     ui->pte_IgnoredStations->clear();
+    ui->pte_IgnoredStations->appendPlainText(m_config.permIgnoreList());
     m_ignoreListReset = QDateTime::currentDateTime();
     m_filterCacheValid = false;
 }
