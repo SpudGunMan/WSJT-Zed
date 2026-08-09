@@ -12791,6 +12791,8 @@ void MainWindow::on_respondComboBox_currentIndexChanged(int index)
       ui->cbFirst->setChecked(call_first);
       ui->cbFirst->blockSignals(blocked);
     }
+  // Enable cb_autoCallPriority only when cbFirst is disabled (call_first is false)
+  ui->cb_autoCallPriority->setEnabled(!call_first);
 }
 
 void MainWindow::on_measure_check_box_stateChanged (int state)
@@ -14655,9 +14657,8 @@ bool MainWindow::callsignFiltered(DecodedText dt)
 
     //State filter
     if (ui->cb_stateFilter->currentIndex() > 0) {
-        QString country = looked_up.entity_name;
-        if  (country == "United States")  {
-            QString state = stateLookup(dxCall);
+        QString state = stateLookup(dxCall);
+        if (!state.isEmpty()) {
             if (m_zdebug) log("callsignFiltered: US State filtering: " + state);
 
             QStringList const& filterLines = m_stateFilterLinesCache;
