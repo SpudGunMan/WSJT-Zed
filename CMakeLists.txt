@@ -76,7 +76,7 @@ set (PROJECT_MANUAL_DIRECTORY_URL https://groups.io/g/WSJT-Z)
 set (PROJECT_SAMPLES_URL https://sourceforge.net/projects/wsjt/files/)
 #set (PROJECT_SAMPLES_UPLOAD_DEST frs.sourceforge.net:/home/frs/project/wsjt/)
 # WSJT-Z mod version suffix shown in UI and package metadata.
-set (VERSION_Z "2.0.16")
+set (VERSION_Z "2.0.19")
 message (STATUS "******************************************************")
 message (STATUS "Building ${PROJECT_BUNDLE_NAME} ${VERSION_Z} (base WSJT-X ${PROJECT_VERSION}) for ${CMAKE_SYSTEM_NAME}-${PROJECT_ARCHITECTURE}")
 message (STATUS "******************************************************")
@@ -256,6 +256,7 @@ set (wsjt_qt_CXXSRCS
   widgets/CheckableItemComboBox.cpp
   widgets/BandComboBox.cpp
   otpgenerator.cpp
+  UDPExamples/MessageServer.cpp
   )
 
 set (wsjt_qtmm_CXXSRCS
@@ -291,6 +292,7 @@ set (wsjtx_CXXSRCS
   widgets/astro.cpp
   widgets/messageaveraging.cpp
   widgets/activeStations.cpp
+  widgets/DXStationMap.cpp
   widgets/QSYMessage.cpp
   widgets/QSYMessageCreator.cpp
   widgets/qsymonitor.cpp
@@ -516,7 +518,6 @@ set (wsjt_FSRCS
   lib/mskrtd.f90
   lib/msk144signalquality.f90
   lib/msk144sim.f90
-  lib/mskrtd.f90
   lib/nuttal_window.f90
   lib/decode_msk144.f90
   lib/ft4/ft4sim.f90
@@ -791,7 +792,6 @@ set (UDP_library_CXXSRCS
   Radio.cpp
   RadioMetaType.cpp
   Network/NetworkMessage.cpp
-  UDPExamples/MessageServer.cpp
   )
 
 set (UDP_library_HEADERS
@@ -837,6 +837,8 @@ set (TOP_LEVEL_RESOURCES
   icons/Darwin/wsjtx.iconset/icon_128x128.png
   contrib/gpl-v3-logo.svg
   artwork/splash.png
+  artwork/worldmap.jpg
+  artwork/worldmap_iaru.jpg
   )
 
 set (PALETTE_FILES
@@ -1664,7 +1666,7 @@ generate_version_info (udp_daemon_VERSION_RESOURCES
   FILE_DESCRIPTION "Example WSJT-X UDP Message Protocol daemon"
   )
 add_executable (udp_daemon UDPExamples/UDPDaemon.cpp ${udp_daemon_VERSION_RESOURCES})
-target_link_libraries (udp_daemon wsjtx_udp-static)
+target_link_libraries (udp_daemon wsjt_qt)
 
 generate_version_info (wsjtx_app_version_VERSION_RESOURCES
   NAME wsjtx_app_version
@@ -1692,7 +1694,7 @@ add_executable (message_aggregator
   ${message_aggregator_RESOURCES_RCC}
   ${message_aggregator_VERSION_RESOURCES}
   )
-target_link_libraries (message_aggregator wsjt_qt Qt5::Widgets wsjtx_udp-static)
+target_link_libraries (message_aggregator wsjt_qt Qt5::Widgets)
 
 if (WSJT_CREATE_WINMAIN)
   set_target_properties (message_aggregator PROPERTIES WIN32_EXECUTABLE ON)
