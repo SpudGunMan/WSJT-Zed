@@ -1,0 +1,288 @@
+name: Build Linux
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "WSJT-Z version string"
+        required: true
+        type: string
+      hamlib_branch:
+        description: "Hamlib branch to build"
+        required: false
+        type: string
+        default: "4.7.2"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "WSJT-Z version string"
+        required: true
+        default: "3.0.0"
+        type: string
+      hamlib_branch:
+        description: "Hamlib branch to build"
+        required: false
+        default: "4.7.2"
+        type: string
+
+jobs:
+  build:
+    permissions:
+      contents: read  # for checkout
+      actions: write  # for cache and upload-artifact
+    name: Build Linux x86_64 (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - container: 'ubuntu:24.04'
+            distro: 'ubuntu-24.04'
+            deb_name: 'wsjtz-${{ inputs.version }}-linux-ubuntu24.04-amd64.deb'
+          - container: 'ubuntu:26.04'
+            distro: 'ubuntu-26.04'
+            deb_name: 'wsjtz-${{ inputs.version }}-linux-ubuntu26.04-amd64.deb'
+          - container: 'debian:trixie'
+            distro: 'debian-trixie'
+            deb_name: 'wsjtz-${{ inputs.version }}-linux-debian-trixie-amd64.deb'
+    container:
+      image: ${{ matrix.container }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git wget curl ca-certificates \
+            gfortran \
+            qtbase5-dev qt5-qmake qttools5-dev qttools5-dev-tools \
+            qtmultimedia5-dev libqt5multimedia5-plugins \
+            libqt5serialport5-dev libqt5websockets5-dev \
+            libqt5sql5-sqlite libqt5svg5-dev \
+            libfftw3-dev \
+            libboost-log-dev libboost-thread-dev \
+            libusb-1.0-0-dev libudev-dev \
+            portaudio19-dev \
+            autoconf automake libtool pkg-config \
+            asciidoctor dpkg-dev \
+            texinfo file
+
+      - name: Cache Hamlib
+        id: hamlib-cache
+        uses: actions/cache@v4
+        with:
+          path: hamlib-prefix
+          key: hamlib-linux-x86_64-${{ inputs.hamlib_branch }}-${{ hashFiles('.github/workflows/build-linux.yml') }}
+
+      - name: Build Hamlib from source
+        if: steps.hamlib-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "${{ inputs.hamlib_branch }}" \
+            https://github.com/Hamlib/Hamlib.git hamlib-src
+          cd hamlib-src
+          ./bootstrap
+          ./configure \
+            --prefix="${GITHUB_WORKSPACE}/hamlib-prefix" \
+            --disable-shared --enable-static \
+            --without-cxx-binding \
+            CFLAGS="-g -O2 -fPIC -fdata-sections -ffunction-sections" \
+            LDFLAGS="-Wl,--gc-sections"
+          make -j$(nproc)
+          make install
+
+      - name: Configure
+        run: |
+          cmake -S . -B wsjtx-build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${GITHUB_WORKSPACE}/hamlib-prefix" \
+            -DWSJT_SKIP_MANPAGES=ON \
+            -DWSJT_GENERATE_DOCS=OFF \
+            -Wno-dev
+
+      - name: Build
+        run: cmake --build wsjtx-build -j$(nproc)
+
+      - name: Run tests
+        id: ctest
+        continue-on-error: true
+        run: ctest --output-on-failure
+        working-directory: wsjtx-build
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Verify binary
+        run: |
+          file wsjtx-build/jt9
+          file wsjtx-build/jt9 | grep -q "ELF 64-bit"
+
+      - name: Package .deb
+        run: |
+          cd wsjtx-build
+          cpack -G DEB \
+            -D "CPACK_DEBIAN_FILE_NAME=${{ matrix.deb_name }}"
+          ls -lh *.deb
+          dpkg-deb --info *.deb | head -20
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifacts
+          cp -v wsjtx-build/${{ matrix.deb_name }} artifacts/
+          cp -v wsjtx-build/jt9 artifacts/wsjtx-jt9-${{ matrix.distro }}
+          cp -v wsjtx-build/wsjtx artifacts/wsjtx-${{ matrix.distro }}
+          ls -lh artifacts
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v7
+        with:
+          name: wsjtz-${{ inputs.version }}-linux-${{ matrix.distro }}-deb
+          path: wsjtx-build/${{ matrix.deb_name }}
+          retention-days: 30
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: wsjtx-${{ inputs.version }}-linux-${{ matrix.distro }}-binaries
+          path: |
+            wsjtx-build/jt9
+            wsjtx-build/wsjtx
+          retention-days: 30
+
+  build-appimage:
+    permissions:
+      contents: read
+      actions: write
+    name: Build AppImage (ubuntu-26.04)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git wget curl ca-certificates \
+            gfortran \
+            qtbase5-dev qt5-qmake qttools5-dev qttools5-dev-tools \
+            qtmultimedia5-dev libqt5multimedia5-plugins \
+            libqt5serialport5-dev libqt5websockets5-dev \
+            libqt5sql5-sqlite libqt5svg5-dev \
+            libfftw3-dev \
+            libboost-log-dev libboost-thread-dev \
+            libusb-1.0-0-dev libudev-dev \
+            portaudio19-dev \
+            autoconf automake libtool pkg-config \
+            asciidoctor dpkg-dev \
+            texinfo file
+
+      - name: Cache Hamlib
+        id: hamlib-cache
+        uses: actions/cache@v4
+        with:
+          path: hamlib-prefix
+          key: hamlib-linux-x86_64-${{ inputs.hamlib_branch }}-${{ hashFiles('.github/workflows/build-linux.yml') }}
+
+      - name: Build Hamlib from source
+        if: steps.hamlib-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "${{ inputs.hamlib_branch }}" \
+            https://github.com/Hamlib/Hamlib.git hamlib-src
+          cd hamlib-src
+          ./bootstrap
+          ./configure \
+            --prefix="${GITHUB_WORKSPACE}/hamlib-prefix" \
+            --disable-shared --enable-static \
+            --without-cxx-binding \
+            CFLAGS="-g -O2 -fPIC -fdata-sections -ffunction-sections" \
+            LDFLAGS="-Wl,--gc-sections"
+          make -j$(nproc)
+          make install
+
+      - name: Configure
+        run: |
+          cmake -S . -B wsjtx-build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${GITHUB_WORKSPACE}/hamlib-prefix" \
+            -DWSJT_SKIP_MANPAGES=ON \
+            -DWSJT_GENERATE_DOCS=OFF \
+            -Wno-dev
+
+      - name: Build
+        run: cmake --build wsjtx-build -j$(nproc)
+
+      - name: Download linuxdeploy tools
+        run: |
+          mkdir -p linuxdeploy-tools
+          cd linuxdeploy-tools
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
+          ls -lh
+
+      - name: Create AppImage
+        run: |
+          set -e
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/pixmaps
+          cp -v wsjtx-build/wsjtx AppDir/usr/bin/
+          cp -v wsjtx-build/jt9 AppDir/usr/bin/
+          
+          # Make binaries executable
+          chmod +x AppDir/usr/bin/wsjtx AppDir/usr/bin/jt9
+          
+          # Verify binaries exist and are executable
+          ls -lh AppDir/usr/bin/
+          file AppDir/usr/bin/wsjtx
+          
+          # Copy desktop file
+          if [ -f wsjtx.desktop ]; then
+            cp -v wsjtx.desktop AppDir/usr/share/applications/
+          fi
+          
+          # Copy icon
+          if find icons -name "*wsjtx*" -type f 2>/dev/null | head -1 | xargs -I {} cp -v {} AppDir/usr/share/pixmaps/wsjtx.png 2>/dev/null; then
+            true
+          fi
+          
+          # Fix desktop file icon entry to match actual icon filename
+          if [ -f AppDir/usr/share/applications/wsjtx.desktop ]; then
+            sed -i 's/^Icon=.*/Icon=wsjtx/' AppDir/usr/share/applications/wsjtx.desktop
+          fi
+          
+          # Create symlink in AppDir root for AppRun
+          ln -sf "$(pwd)/AppDir/usr/bin/wsjtx" "AppDir/wsjtx"
+          
+          # Copy binary to AppDir root so linuxdeploy can find it when parsing desktop file
+          cp -v wsjtx-build/wsjtx AppDir/wsjtx-bin
+          chmod +x AppDir/wsjtx-bin
+          
+          # Update the desktop file Exec to point to a path linuxdeploy will find
+          if [ -f AppDir/usr/share/applications/wsjtx.desktop ]; then
+            sed -i 's/^Exec=.*/Exec=wsjtx-bin/' AppDir/usr/share/applications/wsjtx.desktop
+          fi
+          
+          # Also ensure wsjtx is in PATH for linuxdeploy to find it
+          export PATH="$(pwd)/AppDir:$(pwd)/AppDir/usr/bin:${PATH}:${GITHUB_WORKSPACE}/linuxdeploy-tools"
+          
+          # Run linuxdeploy with the executable
+          linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --plugin qt \
+            --executable AppDir/wsjtx-bin \
+            --output appimage
+          
+          mv WSJT*.AppImage "wsjtz-${{ inputs.version }}-linux-x86_64.AppImage" || \
+          ls -lh *.AppImage && mv *.AppImage "wsjtz-${{ inputs.version }}-linux-x86_64.AppImage"
+
+      - name: Verify AppImage
+        run: |
+          ls -lh wsjtz-${{ inputs.version }}-linux-x86_64.AppImage
+          file wsjtz-${{ inputs.version }}-linux-x86_64.AppImage
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v7
+        with:
+          name: wsjtz-${{ inputs.version }}-linux-x86_64-appimage
+          path: wsjtz-${{ inputs.version }}-linux-x86_64.AppImage
+          retention-days: 30
