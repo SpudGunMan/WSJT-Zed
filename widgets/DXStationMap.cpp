@@ -354,6 +354,7 @@ void DXStationMap::addStation(PlottedStation const& s)
         updated.isLogged = true;
     } else if (updated.grid.isEmpty()) {
         updated.forMe = false;
+        updated.isLogged = updated.isLogged || proceduralSignoff;
     }
     m_recentSNR[s.call] = updated.snr;
 
