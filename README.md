@@ -31,3 +31,5 @@ cmake --build build --target clean
 
 # License
 GPL-3 (inherited from WSJT-X).
+
+WSJT™, WSJT-X™, MAP65™, and QMAP™ are trademarks of the [WSJT Development Team](https://github.com/WSJTX/wsjtx/blob/master/TRADEMARK.md)
