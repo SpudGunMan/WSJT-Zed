@@ -1332,7 +1332,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   if(m_mode=="MSK144") {
     if (m_tci_audio) {
       QTimer::singleShot (5000, [=] {
-        if (ui->bandComboBox->currentText()!="OOB") {
+        if (m_rigState.frequency() != 0 && ui->bandComboBox->currentText().compare("OOB", Qt::CaseInsensitive) != 0) {
           Q_EMIT m_config.transceiver_trfrequency(1000.0);
         } else {
           rigFailure("TCI audio cannot be started as frequency is OOB");
@@ -1344,7 +1344,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   } else {
     if (m_tci_audio) {
       QTimer::singleShot (5000, [=] {
-        if (ui->bandComboBox->currentText()!="OOB") {
+        if (m_rigState.frequency() != 0 && ui->bandComboBox->currentText().compare("OOB", Qt::CaseInsensitive) != 0) {
           Q_EMIT m_config.transceiver_trfrequency(ui->TxFreqSpinBox->value () - m_XIT);
         } else {
           rigFailure("TCI audio cannot be started as frequency is OOB");
@@ -2216,7 +2216,13 @@ void MainWindow::set_application_font (QFont const& font)
 {
   qApp->setFont (font);
   // Z
-  qApp->setStyleSheet (qApp->styleSheet () + "* {" + font_as_stylesheet (font) + '}');
+  auto style_sheet = qApp->styleSheet ();
+  if (!m_application_font_style_sheet_rule_.isEmpty ())
+    {
+      style_sheet.remove (m_application_font_style_sheet_rule_);
+    }
+  m_application_font_style_sheet_rule_ = "* {" + font_as_stylesheet (font) + '}';
+  qApp->setStyleSheet (style_sheet + m_application_font_style_sheet_rule_);
   if (m_config.largerTabWidget()) ui->tabWidget->setMaximumHeight(1000);
   for (auto& widget : qApp->topLevelWidgets ())
     {
@@ -2857,7 +2863,7 @@ void MainWindow::on_actionSettings_triggered()               //Setup Dialog
     if (was_monitoring && (m_config.restart_tci () or !m_tci_audio) && !m_monitoring && !m_transmitting && g_iptt!=1) {
       if(m_mode=="MSK144") {
         if (m_tci_audio) {
-          if (ui->bandComboBox->currentText()!="OOB") {
+          if (m_rigState.frequency() != 0 && ui->bandComboBox->currentText().compare("OOB", Qt::CaseInsensitive) != 0) {
             Q_EMIT m_config.transceiver_trfrequency(1000.0);
           } else {
             rigFailure("TCI audio cannot be started as frequency is OOB");
@@ -2867,7 +2873,7 @@ void MainWindow::on_actionSettings_triggered()               //Setup Dialog
         }
       } else {
         if (m_tci_audio) {
-          if (ui->bandComboBox->currentText()!="OOB") {
+          if (m_rigState.frequency() != 0 && ui->bandComboBox->currentText().compare("OOB", Qt::CaseInsensitive) != 0) {
             Q_EMIT m_config.transceiver_trfrequency(ui->TxFreqSpinBox->value () - m_XIT);
           } else {
             rigFailure("TCI audio cannot be started as frequency is OOB");
@@ -2970,7 +2976,7 @@ void MainWindow::monitor (bool state)
     m_diskData = false; // no longer reading WAV files
     if (!m_monitoring) {
       if (m_tci_audio) {
-        if (ui->bandComboBox->currentText()!="OOB") {
+        if (m_rigState.frequency() != 0 && ui->bandComboBox->currentText().compare("OOB", Qt::CaseInsensitive) != 0) {
           Q_EMIT m_config.transceiver_audio(true);
         } else {
           rigFailure("TCI audio cannot be started as frequency is OOB");
@@ -2981,7 +2987,7 @@ void MainWindow::monitor (bool state)
     }
   } else {
     if (m_tci_audio) {
-      if (ui->bandComboBox->currentText()!="OOB") {
+      if (m_rigState.frequency() != 0 && ui->bandComboBox->currentText().compare("OOB", Qt::CaseInsensitive) != 0) {
         Q_EMIT m_config.transceiver_audio(false);
       } else {
         rigFailure("TCI audio cannot be stopped as frequency is OOB");
